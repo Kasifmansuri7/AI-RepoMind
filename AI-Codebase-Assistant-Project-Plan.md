@@ -205,7 +205,61 @@ ai-codebase-assistant/
 
 ---
 
-## 11. Resume Bullet Ideas (fill in real numbers once built)
+## 11. How Users Provide Their Repo
+
+There are several ways to get a repo into the system, ranging from simple to production-grade. Pick the right one per stage of the build.
+
+### Option 1: GitHub URL (simplest — good for public repos)
+User pastes a URL (e.g. `https://github.com/user/repo`) and the backend shallow-clones it.
+```python
+import subprocess
+
+def clone_repo(github_url: str, dest_dir: str):
+    subprocess.run(["git", "clone", "--depth", "1", github_url, dest_dir], check=True)
+```
+- `--depth 1` = shallow clone, only latest commit, much faster for large repos.
+- Zero auth complexity. Doesn't work for private repos without a token.
+
+### Option 2: GitHub URL + Personal Access Token (private repos)
+User supplies a URL and a scoped, read-only GitHub token.
+```python
+clone_url = f"https://{token}@github.com/user/repo.git"
+```
+Store the token encrypted, never log it, and scope it to minimal read-only repo access.
+
+### Option 3: Local folder path (best fit for the MCP server)
+Since the MCP server runs locally on the user's own machine (that's how MCP works with Claude Desktop/Code), this is the most natural option — no cloning needed, just walk the filesystem directly.
+```python
+# MCP tool signature
+def index_repo(local_path: str):
+    # walk the filesystem directly
+    ...
+```
+
+### Option 4: GitHub OAuth (most "product-like," more work — stretch goal)
+1. User clicks "Connect GitHub."
+2. OAuth flow returns a scoped access token.
+3. User picks a repo from a dropdown of their own repos.
+4. Backend clones/pulls automatically, optionally re-indexing on push via webhooks.
+
+More impressive to demo, but adds real complexity (OAuth app registration, token refresh, webhook handling). Treat as a stretch goal, not a Week 1 requirement.
+
+### Option 5: Drag-and-drop / zip upload
+User uploads a `.zip` of their project. Useful as a no-auth fallback, but less impressive since it doesn't show real-world integration.
+
+### Recommended mapping to the build roadmap
+
+| Stage | Input method |
+|---|---|
+| MCP server (Week 2) | **Local folder path** — simplest, matches how MCP actually runs on the user's machine |
+| Optional web UI (Week 4) | **Public GitHub URL** — good demo value, no auth complexity |
+| Stretch goal | GitHub OAuth + private repo support, dropdown repo picker |
+
+Starting with local path + public URL cloning covers most of the resume/demo value without the OAuth overhead. OAuth can be added later to make it feel like a more polished product.
+
+---
+
+## 12. Resume Bullet Ideas (fill in real numbers once built)
 
 - Built a full-stack AI codebase assistant combining RAG, multi-agent orchestration (LangGraph), and a custom MCP server integrated with Claude Desktop.
 - Implemented AST-aware code chunking with tree-sitter and hybrid (vector + keyword) retrieval, improving relevant-context precision by X%.
@@ -215,7 +269,7 @@ ai-codebase-assistant/
 
 ---
 
-## 12. Next Steps
+## 13. Next Steps
 
 - [ ] Pick a target repo to index first (your own project, or a well-known open-source repo)
 - [ ] Set up the backend skeleton (FastAPI + Postgres/pgvector or Qdrant via Docker)
