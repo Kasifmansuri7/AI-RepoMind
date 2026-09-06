@@ -1,0 +1,27 @@
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs / Editors
+.vscode/
+.idea/
+.gemini/
+*.swp
+*.swo
+.DS_Store
+
+# Qdrant / Data / Logs
+qdrant_storage/
+*.log
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
