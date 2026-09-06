@@ -5,10 +5,12 @@ import { useChatStore } from "@/store/chatStore";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
+import { RepoIngestionModal } from "@/components/RepoIngestionModal";
 
 export default function Home() {
   const { isLoggedIn } = useChatStore();
   const [mounted, setMounted] = useState(false);
+  const [isIngestOpen, setIsIngestOpen] = useState(false);
 
   // Prevent hydration mismatch with Zustand persist by waiting for mount
   useEffect(() => {
@@ -22,9 +24,10 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+    <div className="flex h-screen overflow-hidden relative">
+      <Sidebar onOpenIngest={() => setIsIngestOpen(true)} />
       <ChatArea />
+      <RepoIngestionModal isOpen={isIngestOpen} onClose={() => setIsIngestOpen(false)} />
     </div>
   );
 }

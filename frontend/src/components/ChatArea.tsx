@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Terminal, Sparkles, Loader2, Database } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 
 export function ChatArea() {
@@ -28,18 +29,21 @@ export function ChatArea() {
     setStatus("Initializing agent...");
 
     try {
-      const res = await fetch("http://localhost:8000/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Tenant-ID": tenantId
-        },
-        body: JSON.stringify({ message: msgText, repo_name: repoName })
-      });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
+      const res = await axios.post(`${API_URL}/api/chat`, 
+        { message: msgText, repo_name: repoName },
+        {
+          headers: { "X-Tenant-ID": tenantId },
+          responseType: 'stream',
+          adapter: 'fetch'
+        }
+      );
 
-      if (!res.body) throw new Error("No response body");
+      const stream = res.data as unknown as ReadableStream<Uint8Array>;
+      if (!stream) throw new Error("No response body");
 
-      const reader = res.body.getReader();
+      const reader = stream.getReader();
       const decoder = new TextDecoder("utf-8");
       let finalContent = "";
 

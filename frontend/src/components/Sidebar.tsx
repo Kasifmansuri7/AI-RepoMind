@@ -1,10 +1,16 @@
 "use client";
 
-import { Sparkles, GitBranch, LogOut, MessageSquare } from "lucide-react";
+import { useEffect } from "react";
+import { Sparkles, GitBranch, LogOut, MessageSquare, Plus } from "lucide-react";
 import { useChatStore } from "@/store/chatStore";
 
-export function Sidebar() {
-  const { tenantId, repoName, logout } = useChatStore();
+export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
+  const { tenantId, repos, repoName, setRepoName, sessions, fetchRepos, fetchSessions, fetchMessages, logout } = useChatStore();
+
+  useEffect(() => {
+    fetchRepos();
+    fetchSessions();
+  }, [fetchRepos, fetchSessions]);
 
   return (
     <div className="w-72 glass border-r border-white/5 flex flex-col z-10">
@@ -14,24 +20,48 @@ export function Sidebar() {
       </div>
       
       <div className="p-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Active Repository</p>
-        <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition">
-          <GitBranch className="w-5 h-5 text-gray-300" />
-          <span className="text-sm font-medium">{repoName}</span>
+        <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Repository</p>
+            <button onClick={onOpenIngest} className="text-blue-400 hover:text-blue-300 transition">
+                <Plus className="w-4 h-4" />
+            </button>
         </div>
+        
+        {repos.length > 0 ? (
+            <select
+              value={repoName}
+              onChange={(e) => setRepoName(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm font-medium text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            >
+              {repos.map((r) => (
+                <option key={r.id} value={r.name} className="bg-gray-900">{r.name}</option>
+              ))}
+            </select>
+        ) : (
+            <button onClick={onOpenIngest} className="w-full flex items-center justify-center gap-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl p-3 text-sm hover:bg-blue-600/30 transition">
+               <Plus className="w-4 h-4" /> Add your first repo
+            </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Chats</p>
         <div className="space-y-2">
-          <div className="flex items-center gap-3 text-gray-400 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
-            <MessageSquare className="w-4 h-4" />
-            <span className="text-sm truncate">Fix chunker nested bug</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-400 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition">
-            <MessageSquare className="w-4 h-4" />
-            <span className="text-sm truncate">Explain Qdrant setup</span>
-          </div>
+          {sessions.length > 0 ? sessions.map((s) => (
+             <div 
+               key={s.id} 
+               onClick={() => fetchMessages(s.id)}
+               className="flex items-center gap-3 text-gray-400 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition"
+             >
+               <MessageSquare className="w-4 h-4 shrink-0" />
+               <div className="flex flex-col overflow-hidden">
+                   <span className="text-sm truncate">Chat ({s.repo_id.split('_')[1]})</span>
+                   <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+               </div>
+             </div>
+          )) : (
+             <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
+          )}
         </div>
       </div>
 
