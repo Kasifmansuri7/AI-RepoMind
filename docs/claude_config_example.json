@@ -6,7 +6,10 @@
         "d:/Projects/AI-RepoMind/backend/mcp_server/server.py"
       ],
       "env": {
-        "MCP_TENANT_ID": "your_tenant_id_here"
+        "MCP_TENANT_ID": "your_tenant_id_here",
+        "LANGCHAIN_TRACING_V2": "true",
+        "LANGCHAIN_PROJECT": "AI-RepoMind",
+        "LANGCHAIN_API_KEY": "your_langchain_api_key_here"
       }
     }
   }

@@ -13,6 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
 from backend.rag.search import CodeSearcher
+from backend.agents.graph import agent_graph
 
 # Create the MCP Server 
 mcp = FastMCP("AI RepoMind Codebase Assistant")
@@ -55,6 +56,36 @@ def search_codebase(query: str, repo_name: str = None) -> str:
         
     except Exception as e:
         return f"An error occurred while searching the codebase: {str(e)}"
+
+@mcp.tool()
+def autonomous_agent_task(task_description: str, repo_name: str = None) -> str:
+    """
+    Run an autonomous agent (Planner -> Searcher -> Coder -> Reviewer) to fulfill complex codebase tasks.
+    Use this for complex bug fixes, feature implementations, or deep refactoring tasks.
+    
+    Args:
+        task_description: Detailed explanation of what the agent needs to do.
+        repo_name: Optional. Restrict to a specific repo.
+    """
+    tenant_id = os.getenv("MCP_TENANT_ID")
+    if not tenant_id:
+        return "Error: MCP_TENANT_ID environment variable is not set."
+        
+    initial_state = {
+        "task": task_description,
+        "tenant_id": tenant_id,
+        "repo_name": repo_name,
+        "revision_number": 0,
+        "max_revisions": 3
+    }
+    
+    try:
+        final_state = agent_graph.invoke(initial_state)
+        response = f"**Agent Plan:**\n{final_state['plan']}\n\n"
+        response += f"**Final Approved Output:**\n{final_state['draft_code']}"
+        return response
+    except Exception as e:
+        return f"Agent failed: {e}"
 
 if __name__ == "__main__":
     # Start the stdio server (this is what Claude Desktop connects to)
