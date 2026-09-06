@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ai_repomind": {
+      "command": "d:/Projects/AI-RepoMind/venv/Scripts/python.exe",
+      "args": [
+        "d:/Projects/AI-RepoMind/backend/mcp_server/server.py"
+      ],
+      "env": {
+        "MCP_TENANT_ID": "your_tenant_id_here"
+      }
+    }
+  }
+}
