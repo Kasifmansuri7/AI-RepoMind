@@ -2,8 +2,8 @@ from pathlib import Path
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjs
 import tree_sitter_typescript as ttts
-import tree_sitter_jsx as tsjsx
-import tree_sitter_tsx as tstsx
+import tree_sitter_javascript as tsjsx
+import tree_sitter_typescript as tstsx
 from tree_sitter import Language, Parser
 
 def get_parser(extension: str) -> Parser | None:
