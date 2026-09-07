@@ -22,17 +22,18 @@ from backend.api.routers import chat, repos, history
 
 app = FastAPI(title="AI RepoMind API")
 
-# Setup CORS for the Next.js frontend
+# Apply our custom Tenant Auth middleware
+app.add_middleware(TenantAuthMiddleware)
+
+# Setup CORS for the Next.js frontend (registered last so it is the outermost middleware)
+CLIENT_URL=os.getenv("CLIENT_URL")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[CLIENT_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Apply our custom Tenant Auth middleware
-app.add_middleware(TenantAuthMiddleware)
 
 @app.on_event("startup")
 def on_startup():
