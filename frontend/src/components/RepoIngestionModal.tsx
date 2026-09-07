@@ -10,7 +10,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState("");
   const [isIngesting, setIsIngesting] = useState(false);
-  const { tenantId, fetchRepos } = useChatStore();
+  const { session, fetchRepos } = useChatStore();
 
   const handleIngest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +25,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
       const res = await axios.post(`${API_URL}/api/repos/ingest`, 
         { url },
         {
-          headers: { "X-Tenant-ID": tenantId },
+          headers: { "Authorization": `Bearer ${session?.access_token}` },
           responseType: 'stream',
           adapter: 'fetch'
         }

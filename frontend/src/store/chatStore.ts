@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
+import { supabase } from '@/utils/supabase/client';
+import { Session } from '@supabase/supabase-js';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -11,19 +13,19 @@ export type ChatSession = { id: string, repo_id: string, created_at: string };
 interface ChatState {
   tenantId: string;
   isLoggedIn: boolean;
+  session: Session | null;
   messages: Message[];
   repoName: string;
   repos: Repo[];
   sessions: ChatSession[];
   currentSessionId: string | null;
   
-  setTenantId: (id: string) => void;
-  setIsLoggedIn: (status: boolean) => void;
-  setMessages: (msgs: Message[]) => void;
+  initializeAuth: () => void;
+  logout: () => Promise<void>;
+  
   setRepoName: (name: string) => void;
   setCurrentSessionId: (id: string | null) => void;
   addMessage: (msg: Message) => void;
-  logout: () => void;
   
   fetchRepos: () => Promise<void>;
   fetchSessions: () => Promise<void>;
@@ -35,26 +37,51 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       tenantId: "",
       isLoggedIn: false,
+      session: null,
       messages: [],
       repoName: "",
       repos: [],
       sessions: [],
       currentSessionId: null,
       
-      setTenantId: (id) => set({ tenantId: id }),
-      setIsLoggedIn: (status) => set({ isLoggedIn: status }),
-      setMessages: (msgs) => set({ messages: msgs }),
+      initializeAuth: () => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          set({ 
+            session, 
+            isLoggedIn: !!session,
+            tenantId: session?.user.id || "" 
+          });
+        });
+
+        supabase.auth.onAuthStateChange((_event, session) => {
+          set({ 
+            session, 
+            isLoggedIn: !!session,
+            tenantId: session?.user.id || ""
+          });
+          if (session) {
+             get().fetchRepos();
+             get().fetchSessions();
+          } else {
+             set({ messages: [], repos: [], sessions: [], repoName: "", currentSessionId: null });
+          }
+        });
+      },
+
+      logout: async () => {
+        await supabase.auth.signOut();
+      },
+
       setRepoName: (name) => set({ repoName: name }),
       setCurrentSessionId: (id) => set({ currentSessionId: id }),
       addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
-      logout: () => set({ isLoggedIn: false, messages: [], tenantId: "", repos: [], sessions: [], repoName: "", currentSessionId: null }),
       
       fetchRepos: async () => {
-        const { tenantId } = get();
-        if (!tenantId) return;
+        const { session } = get();
+        if (!session) return;
         try {
           const res = await axios.get(`${API_URL}/api/repos`, {
-            headers: { "X-Tenant-ID": tenantId }
+            headers: { "Authorization": `Bearer ${session.access_token}` }
           });
           const data = res.data;
           set({ repos: data });
@@ -67,11 +94,11 @@ export const useChatStore = create<ChatState>()(
       },
       
       fetchSessions: async () => {
-        const { tenantId } = get();
-        if (!tenantId) return;
+        const { session } = get();
+        if (!session) return;
         try {
           const res = await axios.get(`${API_URL}/api/chats`, {
-            headers: { "X-Tenant-ID": tenantId }
+            headers: { "Authorization": `Bearer ${session.access_token}` }
           });
           set({ sessions: res.data });
         } catch (e) {
@@ -80,11 +107,11 @@ export const useChatStore = create<ChatState>()(
       },
       
       fetchMessages: async (sessionId: string) => {
-        const { tenantId } = get();
-        if (!tenantId) return;
+        const { session } = get();
+        if (!session) return;
         try {
           const res = await axios.get(`${API_URL}/api/chats/${sessionId}`, {
-            headers: { "X-Tenant-ID": tenantId }
+            headers: { "Authorization": `Bearer ${session.access_token}` }
           });
           set({ messages: res.data, currentSessionId: sessionId });
         } catch (e) {
@@ -94,6 +121,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'repomind-storage', 
+      partialize: (state) => ({ repoName: state.repoName, currentSessionId: state.currentSessionId }),
     }
   )
 );

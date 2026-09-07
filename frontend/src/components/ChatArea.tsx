@@ -8,7 +8,7 @@ import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 
 export function ChatArea() {
-  const { tenantId, repoName, messages, setMessages, addMessage } = useChatStore();
+  const { session, repoName, messages, addMessage } = useChatStore();
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +34,7 @@ export function ChatArea() {
       const res = await axios.post(`${API_URL}/api/chat`, 
         { message: msgText, repo_name: repoName },
         {
-          headers: { "X-Tenant-ID": tenantId },
+          headers: { "Authorization": `Bearer ${session?.access_token}` },
           responseType: 'stream',
           adapter: 'fetch'
         }

@@ -8,14 +8,15 @@ import { ChatArea } from "@/components/ChatArea";
 import { RepoIngestionModal } from "@/components/RepoIngestionModal";
 
 export default function Home() {
-  const { isLoggedIn } = useChatStore();
+  const { isLoggedIn, initializeAuth } = useChatStore();
   const [mounted, setMounted] = useState(false);
   const [isIngestOpen, setIsIngestOpen] = useState(false);
 
   // Prevent hydration mismatch with Zustand persist by waiting for mount
   useEffect(() => {
     setMounted(true);
-  }, []);
+    initializeAuth();
+  }, [initializeAuth]);
 
   if (!mounted) return null;
 
