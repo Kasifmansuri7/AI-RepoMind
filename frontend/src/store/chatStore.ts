@@ -11,6 +11,7 @@ export type ChatSession = { id: string, repo_id: string, created_at: string };
 interface ChatState {
   tenantId: string;
   isLoggedIn: boolean;
+  isAuthLoading: boolean;
   session: Session | null;
   messages: Message[];
   repoName: string;
@@ -36,6 +37,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       tenantId: "",
       isLoggedIn: false,
+      isAuthLoading: true,
       session: null,
       messages: [],
       repoName: "",
@@ -48,6 +50,7 @@ export const useChatStore = create<ChatState>()(
           set({ 
             session, 
             isLoggedIn: !!session,
+            isAuthLoading: false,
             tenantId: session?.user.id || "" 
           });
         });
@@ -56,6 +59,7 @@ export const useChatStore = create<ChatState>()(
           set({ 
             session, 
             isLoggedIn: !!session,
+            isAuthLoading: false,
             tenantId: session?.user.id || ""
           });
           if (session) {

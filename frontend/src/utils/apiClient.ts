@@ -23,4 +23,19 @@ apiClient.interceptors.request.use(
   }
 );
 
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // If the API returns 401 Unauthorized (e.g. token expired or invalid iat), sign out
+    if (error.response?.status === 401) {
+      await supabase.auth.signOut();
+      // Optional: force a reload to reset the state completely
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default apiClient;

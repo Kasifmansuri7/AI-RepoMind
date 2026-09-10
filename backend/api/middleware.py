@@ -54,6 +54,7 @@ class TenantAuthMiddleware(BaseHTTPMiddleware):
                     token,
                     signing_key.key,
                     algorithms=[alg],
+                    leeway=300,
                     options={"verify_aud": False},
                 )
             else:
@@ -64,6 +65,7 @@ class TenantAuthMiddleware(BaseHTTPMiddleware):
                     token,
                     jwt_secret,
                     algorithms=[alg, "HS256", "HS384", "HS512"],
+                    leeway=300,
                     options={"verify_aud": False},
                 )
 

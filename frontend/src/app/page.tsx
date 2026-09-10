@@ -8,7 +8,7 @@ import { ChatArea } from "@/components/ChatArea";
 import { RepoIngestionModal } from "@/components/RepoIngestionModal";
 
 export default function Home() {
-  const { isLoggedIn, initializeAuth } = useChatStore();
+  const { isLoggedIn, isAuthLoading, initializeAuth } = useChatStore();
   const [mounted, setMounted] = useState(false);
   const [isIngestOpen, setIsIngestOpen] = useState(false);
 
@@ -18,7 +18,13 @@ export default function Home() {
     initializeAuth();
   }, [initializeAuth]);
 
-  if (!mounted) return null;
+  if (!mounted || isAuthLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-black">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return <LoginScreen />;

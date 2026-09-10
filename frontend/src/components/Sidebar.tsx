@@ -18,7 +18,8 @@ import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const { 
-    tenantId, 
+    tenantId,
+    session,
     repos, 
     repoName, 
     setRepoName, 
@@ -50,6 +51,9 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   }, []);
 
   const activeRepo = repos.find((r) => r.name === repoName) || (repos.length > 0 ? repos[0] : null);
+
+  const avatarUrl = session?.user?.user_metadata?.avatar_url;
+  const displayName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || tenantId;
 
   return (
     <>
@@ -211,11 +215,15 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
         {/* User Profile / Logout Section */}
         <div className="p-4 border-t border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm">
-              {tenantId ? tenantId.charAt(0).toUpperCase() : "U"}
-            </div>
-            <span className="text-sm text-gray-300 truncate max-w-[110px]" title={tenantId}>
-              {tenantId}
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm" />
+            ) : (
+              <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm text-gray-300 truncate max-w-[110px]" title={displayName}>
+              {displayName}
             </span>
           </div>
           <button 
