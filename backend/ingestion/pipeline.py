@@ -1,5 +1,6 @@
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from backend.db.client import get_qdrant_client
 from backend.db.models import Tenant, Repository
 from backend.ingestion.repo_manager import RepoManager
@@ -14,15 +15,38 @@ SUPPORTED_EXTENSIONS = [
     ".html", ".css", ".json", ".yaml", ".yml", ".toml", ".sh", ".sql"
 ]
 
+# In-memory cancellation tokens: { tenant_id: True/False }
+_active_ingestions: dict[str, bool] = {}
+
+
+def cancel_ingestion(tenant_id: str):
+    """Signal the running ingestion for a tenant to stop."""
+    _active_ingestions[tenant_id] = True
+
+
+def _is_cancelled(tenant_id: str) -> bool:
+    return _active_ingestions.get(tenant_id, False)
+
+
+def _clear_cancellation(tenant_id: str):
+    _active_ingestions.pop(tenant_id, None)
+
+
 def ingest_repository_generator(source: str, tenant_id: str, db, token: str = None):
     """
     Core business logic for ingesting a repository.
     Yields events so it can be consumed by both CLI and FastAPI SSE streams.
     """
+    # Reset any previous cancellation flag for this tenant
+    _clear_cancellation(tenant_id)
+
     repo_manager = RepoManager()
     is_remote = source.startswith("http") or source.startswith("git@")
     repo_path = None
     keep_cloned = os.getenv("KEEP_CLONED_REPOS", "false").lower() in ("true", "1")
+    repo_name = None
+    repo_id = None
+    was_cancelled = False
 
     try:
         yield {"event": "status", "data": "Cloning repository..."}
@@ -34,7 +58,12 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
         repo_name = repo_path.name
         repo_id = f"{tenant_id}_{repo_name}"
         
-        # Ensure tenant exists (only for demo, in real life they exist via auth)
+        if _is_cancelled(tenant_id):
+            was_cancelled = True
+            yield {"event": "cancelled", "data": "Ingestion cancelled."}
+            return
+
+        # Ensure tenant exists
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if not tenant:
             tenant = Tenant(id=tenant_id, name=f"User {tenant_id}")
@@ -70,41 +99,113 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
                 vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
             )
             
-        points = []
         total_files = len(files)
-        for idx, file_path in enumerate(files):
-            print(f"Chunking & embedding {idx + 1}/{total_files}...")
-            yield {"event": "status", "data": f"Chunking & embedding {idx + 1}/{total_files}..."}
-            chunks = chunker.chunk_file(file_path)
+        BATCH_SIZE = 100      # Accumulate chunks before flushing
+        EMBED_SUB_BATCH = 20  # Texts per OpenAI call
+        EMBED_WORKERS = 5     # Parallel OpenAI calls
+        pending_chunks = []
+        
+        def flush_chunks():
+            if not pending_chunks:
+                return
             
-            for chunk in chunks:
-                embedding = embedder.embed_text(chunk["content"])
-                if not embedding:
-                    continue
-                
-                points.append(
-                    PointStruct(
-                        id=str(uuid.uuid4()),
-                        vector=embedding,
-                        payload={
-                            "tenant_id": tenant_id,
-                            "repo_id": repo_id,
-                            "repo_name": repo_name,
-                            "file_path": chunk["file_path"],
-                            "chunk_index": chunk["chunk_index"],
-                            "content": chunk["content"]
-                        }
+            total = len(pending_chunks)
+            texts = [c["content"] for c in pending_chunks]
+            
+            if _is_cancelled(tenant_id):
+                pending_chunks.clear()
+                return
+
+            yield {"event": "status", "data": f"Embedding {total} chunks in parallel..."}
+
+            # Build sub-batches
+            sub_batches = [
+                (start, texts[start:min(start + EMBED_SUB_BATCH, total)])
+                for start in range(0, total, EMBED_SUB_BATCH)
+            ]
+
+            # Run all sub-batches concurrently
+            results: dict[int, list] = {}
+            embed_error = None
+            with ThreadPoolExecutor(max_workers=EMBED_WORKERS) as executor:
+                futures = {
+                    executor.submit(embedder.embed_batch, batch): start_idx
+                    for start_idx, batch in sub_batches
+                }
+                for future in as_completed(futures):
+                    if _is_cancelled(tenant_id):
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        pending_chunks.clear()
+                        return
+                    start_idx = futures[future]
+                    try:
+                        results[start_idx] = future.result()
+                    except Exception as e:
+                        embed_error = str(e)
+                        print(f"Embed sub-batch at {start_idx} failed: {e}")
+
+            if embed_error:
+                yield {"event": "error", "data": f"Failed to embed batch: {embed_error}"}
+                return
+
+            # Re-assemble in original order
+            all_embeddings = []
+            for start_idx, _ in sub_batches:
+                all_embeddings.extend(results.get(start_idx, []))
+            
+            if _is_cancelled(tenant_id):
+                pending_chunks.clear()
+                return
+            
+            points_to_upsert = []
+            for i, chunk in enumerate(pending_chunks):
+                if i < len(all_embeddings) and all_embeddings[i]:
+                    points_to_upsert.append(
+                        PointStruct(
+                            id=str(uuid.uuid4()),
+                            vector=all_embeddings[i],
+                            payload={
+                                "tenant_id": tenant_id,
+                                "repo_id": repo_id,
+                                "repo_name": repo_name,
+                                "file_path": chunk["file_path"],
+                                "chunk_index": chunk["chunk_index"],
+                                "content": chunk["content"]
+                            }
+                        )
                     )
-                )
             
-            if len(points) >= 50:
-                yield {"event": "status", "data": f"Upserting {len(points)} chunks into Qdrant..."}
-                q_client.upsert(collection_name=COLLECTION_NAME, points=points)
-                points = []
+            if points_to_upsert:
+                yield {"event": "status", "data": f"Upserting {len(points_to_upsert)} chunks into Qdrant..."}
+                q_client.upsert(collection_name=COLLECTION_NAME, points=points_to_upsert)
+            
+            pending_chunks.clear()
+
+        for idx, file_path in enumerate(files):
+            if _is_cancelled(tenant_id):
+                was_cancelled = True
+                break
                 
-        if points:
-            yield {"event": "status", "data": f"Upserting final {len(points)} chunks into Qdrant..."}
-            q_client.upsert(collection_name=COLLECTION_NAME, points=points)
+            if idx % 10 == 0 or idx == total_files - 1:
+                yield {"event": "status", "data": f"Processing file {idx + 1}/{total_files}..."}
+                
+            chunks = chunker.chunk_file(file_path)
+            pending_chunks.extend(chunks)
+            
+            if len(pending_chunks) >= BATCH_SIZE:
+                yield from flush_chunks()
+                if _is_cancelled(tenant_id):
+                    was_cancelled = True
+                    break
+                
+        if not was_cancelled and pending_chunks:
+            yield from flush_chunks()
+            if _is_cancelled(tenant_id):
+                was_cancelled = True
+        
+        if was_cancelled:
+            yield {"event": "cancelled", "data": "Ingestion cancelled."}
+            return
             
         if is_remote and repo_path and not keep_cloned:
             print(f"Cleaning up temporary cloned files for {repo_name}...")
@@ -119,6 +220,57 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
             except Exception:
                 pass
         yield {"event": "error", "data": str(e)}
+    finally:
+        # On cancellation, clean up partial data
+        if was_cancelled:
+            print(f"[Cancel] Cleaning up partial ingestion for tenant={tenant_id}")
+            _cleanup_partial_ingestion(tenant_id, repo_id, repo_name, repo_path, db, is_remote, keep_cloned, repo_manager)
+        _clear_cancellation(tenant_id)
+
+
+def _cleanup_partial_ingestion(tenant_id, repo_id, repo_name, repo_path, db, is_remote, keep_cloned, repo_manager):
+    """Remove partial DB records, Qdrant points, and cloned files on cancellation."""
+    # 1. Remove Qdrant points
+    if repo_name:
+        try:
+            from qdrant_client.models import FilterSelector, Filter, FieldCondition, MatchValue
+            q_client = get_qdrant_client()
+            if q_client.collection_exists(collection_name=COLLECTION_NAME):
+                q_client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=FilterSelector(
+                        filter=Filter(
+                            must=[
+                                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                                FieldCondition(key="repo_name", match=MatchValue(value=repo_name)),
+                            ]
+                        )
+                    ),
+                )
+                print(f"[Cancel] Cleaned Qdrant points for {repo_name}")
+        except Exception as e:
+            print(f"[Cancel] Failed to clean Qdrant: {e}")
+    
+    # 2. Remove partial DB record
+    if repo_id:
+        try:
+            repo = db.query(Repository).filter(Repository.id == repo_id).first()
+            if repo:
+                db.delete(repo)
+                db.commit()
+                print(f"[Cancel] Removed DB record for {repo_id}")
+        except Exception as e:
+            db.rollback()
+            print(f"[Cancel] Failed to clean DB: {e}")
+    
+    # 3. Remove cloned files
+    if is_remote and repo_path and not keep_cloned:
+        try:
+            repo_manager.cleanup_repo(repo_path)
+            print(f"[Cancel] Cleaned repo files at {repo_path}")
+        except Exception as e:
+            print(f"[Cancel] Failed to clean files: {e}")
+
 
 async def async_ingest_repository_generator(source: str, tenant_id: str, db, token: str = None):
     """Async wrapper for FastAPI EventSourceResponse"""

@@ -1,7 +1,6 @@
 -- What if user dont wanna clone it from somewhere? he has repo on other machine or cloud etc
 -- Before cloning if we can fetch the repo details like branches etc, and ask the user about which branch to clone etc
 -- User wanna make changes in the codebase then? from mcp it is doable but what about frontend? can we show the file structure? or something like that?
--- How to make the ingestion pipeline faster
 -- How to make the searching better and accurate
 -- How to protect it from prompt injection?
 -- It can generate sources files like instruction, rules, skill for the repo to download

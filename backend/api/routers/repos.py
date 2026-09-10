@@ -7,7 +7,7 @@ from qdrant_client.models import FilterSelector, Filter, FieldCondition, MatchVa
 from backend.db.postgres import get_db
 from backend.db.models import Repository, ChatSession
 from backend.db.client import get_qdrant_client
-from backend.ingestion.pipeline import async_ingest_repository_generator
+from backend.ingestion.pipeline import async_ingest_repository_generator, cancel_ingestion
 from backend.ingestion.repo_manager import RepoManager
 from backend.constants import COLLECTION_NAME
 
@@ -27,6 +27,12 @@ async def get_repos(request: Request, db = Depends(get_db)):
 async def ingest_repo(request: Request, body: IngestRequest, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
     return EventSourceResponse(async_ingest_repository_generator(body.url, tenant_id, db, token=body.token))
+
+@router.post("/repos/ingest/cancel")
+async def cancel_ingest(request: Request):
+    tenant_id = request.state.tenant_id
+    cancel_ingestion(tenant_id)
+    return {"status": "success", "message": "Cancellation signal sent."}
 
 @router.delete("/repos/{repo_id:path}")
 async def delete_repo(repo_id: str, request: Request, db = Depends(get_db)):

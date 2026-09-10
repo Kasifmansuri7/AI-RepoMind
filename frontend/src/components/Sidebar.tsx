@@ -13,8 +13,9 @@ import {
   Trash2,
   FolderGit2
 } from "lucide-react";
-import { useChatStore, Repo } from "@/store/chatStore";
+import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
+import { DeleteChatModal } from "@/components/DeleteChatModal";
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const { 
@@ -27,11 +28,14 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
     fetchRepos, 
     fetchSessions, 
     fetchMessages, 
+    deleteSession,
+    currentSessionId,
     logout 
   } = useChatStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [repoToDelete, setRepoToDelete] = useState<Repo | null>(null);
+  const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -195,15 +199,31 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                 <div 
                   key={s.id} 
                   onClick={() => fetchMessages(s.id)}
-                  className="flex items-center gap-3 text-gray-400 p-2.5 hover:bg-white/5 rounded-lg cursor-pointer transition group"
+                  className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition group ${
+                    currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
+                  }`}
                 >
-                  <MessageSquare className="w-4 h-4 shrink-0 text-gray-500 group-hover:text-blue-400 transition-colors" />
-                  <div className="flex flex-col overflow-hidden min-w-0">
-                    <span className="text-sm truncate text-gray-300 group-hover:text-white transition-colors">
-                      Chat ({s.repo_id.split('_').slice(1).join('_') || s.repo_id})
-                    </span>
-                    <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+                  <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-2">
+                    <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
+                    <div className="flex flex-col overflow-hidden min-w-0">
+                      <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
+                        Chat ({s.repo_id.split('_').slice(1).join('_') || s.repo_id})
+                      </span>
+                      <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
+                  
+                  <button
+                    type="button"
+                    title="Delete Chat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChatToDelete(s);
+                    }}
+                    className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/20 transition opacity-0 group-hover:opacity-100 shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))
             ) : (
@@ -241,6 +261,13 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
         isOpen={!!repoToDelete}
         repo={repoToDelete}
         onClose={() => setRepoToDelete(null)}
+      />
+
+      {/* Chat Deletion Confirmation Modal */}
+      <DeleteChatModal
+        isOpen={!!chatToDelete}
+        chat={chatToDelete}
+        onClose={() => setChatToDelete(null)}
       />
     </>
   );

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.db.postgres import get_db
 from backend.db.models import ChatSession, Message
 
@@ -19,3 +19,20 @@ async def get_chat_messages(session_id: str, request: Request, db = Depends(get_
     
     messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at.asc()).all()
     return [{"role": m.role, "content": m.content} for m in messages]
+
+@router.delete("/chats/{session_id}")
+async def delete_chat_session(session_id: str, request: Request, db = Depends(get_db)):
+    tenant_id = request.state.tenant_id
+    session = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.tenant_id == tenant_id).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+        
+    try:
+        db.delete(session)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    return {"status": "success", "message": "Chat session deleted successfully"}

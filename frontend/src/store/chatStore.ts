@@ -30,6 +30,7 @@ interface ChatState {
   deleteRepo: (repoId: string) => Promise<boolean>;
   fetchSessions: () => Promise<void>;
   fetchMessages: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<boolean>;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -136,6 +137,26 @@ export const useChatStore = create<ChatState>()(
           set({ messages: res.data, currentSessionId: sessionId });
         } catch (e) {
           console.error(e);
+        }
+      },
+      
+      deleteSession: async (sessionId: string) => {
+        const { session, sessions, currentSessionId } = get();
+        if (!session) return false;
+        try {
+          await apiClient.delete(`/api/chats/${sessionId}`);
+          
+          const remainingSessions = sessions.filter(s => s.id !== sessionId);
+          set({ sessions: remainingSessions });
+          
+          if (currentSessionId === sessionId) {
+            set({ messages: [], currentSessionId: null });
+          }
+          
+          return true;
+        } catch (e) {
+          console.error("Failed to delete chat session:", e);
+          throw e;
         }
       }
     }),

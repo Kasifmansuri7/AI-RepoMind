@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, GitBranch, Folder, Loader2, Server } from "lucide-react";
+import { X, GitBranch, Folder, Loader2, Server, Ban } from "lucide-react";
 import apiClient from "@/utils/apiClient";
 import { useChatStore } from "@/store/chatStore";
 
@@ -11,13 +11,44 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [token, setToken] = useState("");
   const [status, setStatus] = useState("");
   const [isIngesting, setIsIngesting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const { session, fetchRepos } = useChatStore();
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+
+  const handleCancel = async () => {
+    setIsCancelling(true);
+    setStatus("Cancelling ingestion...");
+
+    // 1. Signal the backend to stop the pipeline
+    try {
+      await apiClient.post("/api/repos/ingest/cancel");
+    } catch (e) {
+      console.error("Failed to send cancel signal:", e);
+    }
+
+    // 2. Abort the frontend SSE stream
+    if (readerRef.current) {
+      try { await readerRef.current.cancel(); } catch {}
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    setStatus("Ingestion cancelled.");
+    setIsIngesting(false);
+    setIsCancelling(false);
+  };
 
   const handleIngest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setIsIngesting(true);
+    setIsCancelling(false);
     setStatus("Connecting to server...");
 
     try {
@@ -25,7 +56,8 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
         { url, token: token.trim() || undefined },
         {
           responseType: 'stream',
-          adapter: 'fetch'
+          adapter: 'fetch',
+          signal: abortController.signal,
         }
       );
 
@@ -33,6 +65,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
       if (!stream) throw new Error("No response body");
 
       const reader = stream.getReader();
+      readerRef.current = reader;
       const decoder = new TextDecoder("utf-8");
 
       let buffer = "";
@@ -65,6 +98,12 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
               setIsIngesting(false);
               return;
           }
+
+          if (eventType === "cancelled") {
+              setStatus("Ingestion cancelled.");
+              setIsIngesting(false);
+              return;
+          }
           
           setStatus(dataStr);
           if (eventType === "success") {
@@ -81,7 +120,11 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") {
+        // User-initiated cancel, don't show error
+        return;
+      }
       console.error(err);
       setStatus("Failed to connect to backend.");
     }
@@ -144,19 +187,48 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
               </div>
               
               {status && (
-                <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-sm">
-                  {isIngesting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <div className={`flex items-center gap-3 p-3 rounded-xl text-sm ${
+                  status.startsWith("Error") || status === "Ingestion cancelled."
+                    ? "bg-red-500/10 border border-red-500/20 text-red-400"
+                    : status === "Ingestion complete!"
+                    ? "bg-green-500/10 border border-green-500/20 text-green-400"
+                    : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+                }`}>
+                  {isIngesting && !isCancelling && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+                  {isCancelling && <Ban className="w-4 h-4 animate-pulse shrink-0" />}
                   <span>{status}</span>
                 </div>
               )}
               
-              <button
-                type="submit"
-                disabled={!url.trim() || isIngesting}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors"
-              >
-                {isIngesting ? "Ingesting..." : "Ingest Repository"}
-              </button>
+              <div className="flex gap-3">
+                {isIngesting ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={true}
+                      className="flex-1 bg-blue-600/50 text-white rounded-xl px-4 py-3 font-medium flex items-center justify-center gap-2 opacity-70 cursor-not-allowed"
+                    >
+                      <Loader2 className="w-4 h-4 animate-spin" /> Ingesting...
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={isCancelling}
+                      className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl px-5 py-3 font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Ban className="w-4 h-4" /> Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!url.trim()}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors"
+                  >
+                    Ingest Repository
+                  </button>
+                )}
+              </div>
             </form>
           </motion.div>
         </div>
