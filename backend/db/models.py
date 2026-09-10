@@ -30,6 +30,7 @@ class ChatSession(Base):
     id = Column(String, primary_key=True)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     repo_id = Column(String, ForeignKey("repositories.id"), nullable=False)
+    title = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant")

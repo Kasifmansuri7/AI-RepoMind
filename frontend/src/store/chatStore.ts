@@ -6,7 +6,7 @@ import { Session } from '@supabase/supabase-js';
 
 export type Message = { role: "user" | "assistant", content: string };
 export type Repo = { id: string, name: string, url: string };
-export type ChatSession = { id: string, repo_id: string, created_at: string };
+export type ChatSession = { id: string, repo_id: string, title?: string, created_at: string };
 
 interface ChatState {
   tenantId: string;

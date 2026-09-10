@@ -207,7 +207,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                     <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
                     <div className="flex flex-col overflow-hidden min-w-0">
                       <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
-                        Chat ({s.repo_id.split('_').slice(1).join('_') || s.repo_id})
+                        {s.title || `Chat (${s.repo_id.split('_').slice(1).join('_') || s.repo_id})`}
                       </span>
                       <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
                     </div>

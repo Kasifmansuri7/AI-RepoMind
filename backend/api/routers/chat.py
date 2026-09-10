@@ -15,6 +15,21 @@ class ChatRequest(BaseModel):
     repo_name: str
     session_id: str = None
 
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+
+def generate_chat_title(message: str) -> str:
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        messages = [
+            SystemMessage(content="You are a helpful assistant that generates a very short (max 4-5 words) and concise title for a chat conversation based on the user's first message. Do not include quotes or punctuation."),
+            HumanMessage(content=message)
+        ]
+        response = llm.invoke(messages)
+        return response.content.strip()
+    except Exception:
+        return message[:30] + "..."
+
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
@@ -32,7 +47,8 @@ async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
     session_id = body.session_id
     if not session_id:
         session_id = str(uuid.uuid4())
-        session = ChatSession(id=session_id, tenant_id=tenant_id, repo_id=repo_id)
+        title = generate_chat_title(body.message)
+        session = ChatSession(id=session_id, tenant_id=tenant_id, repo_id=repo_id, title=title)
         db.add(session)
     
     # Save user message

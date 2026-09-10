@@ -8,7 +8,7 @@ router = APIRouter()
 async def get_chats(request: Request, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
     sessions = db.query(ChatSession).filter(ChatSession.tenant_id == tenant_id).order_by(ChatSession.created_at.desc()).all()
-    return [{"id": s.id, "repo_id": s.repo_id, "created_at": str(s.created_at)} for s in sessions]
+    return [{"id": s.id, "repo_id": s.repo_id, "title": s.title, "created_at": str(s.created_at)} for s in sessions]
 
 @router.get("/chats/{session_id}")
 async def get_chat_messages(session_id: str, request: Request, db = Depends(get_db)):
