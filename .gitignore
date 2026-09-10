@@ -17,8 +17,10 @@ __pycache__/
 *.swo
 .DS_Store
 
-# Qdrant / Data / Logs
+# Qdrant / Data / Logs / Cloned Repos
 qdrant_storage/
+repos/
+backend/data/
 *.log
 
 # Distribution / Packaging

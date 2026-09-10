@@ -1,10 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { supabase } from '@/utils/supabase/client';
 import { Session } from '@supabase/supabase-js';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export type Message = { role: "user" | "assistant", content: string };
 export type Repo = { id: string, name: string, url: string };
@@ -28,6 +26,7 @@ interface ChatState {
   addMessage: (msg: Message) => void;
   
   fetchRepos: () => Promise<void>;
+  deleteRepo: (repoId: string) => Promise<boolean>;
   fetchSessions: () => Promise<void>;
   fetchMessages: (sessionId: string) => Promise<void>;
 }
@@ -80,9 +79,7 @@ export const useChatStore = create<ChatState>()(
         const { session } = get();
         if (!session) return;
         try {
-          const res = await axios.get(`${API_URL}/api/repos`, {
-            headers: { "Authorization": `Bearer ${session.access_token}` }
-          });
+          const res = await apiClient.get('/api/repos');
           const data = res.data;
           set({ repos: data });
           if (data.length > 0 && !get().repoName) {
@@ -92,14 +89,35 @@ export const useChatStore = create<ChatState>()(
           console.error(e);
         }
       },
+
+      deleteRepo: async (repoId: string) => {
+        const { session, repos, repoName } = get();
+        if (!session) return false;
+        try {
+          await apiClient.delete(`/api/repos/${encodeURIComponent(repoId)}`);
+          
+          const remainingRepos = repos.filter(r => r.id !== repoId && r.name !== repoId);
+          set({ repos: remainingRepos });
+          
+          const targetRepo = repos.find(r => r.id === repoId || r.name === repoId);
+          if (targetRepo && targetRepo.name === repoName) {
+            const nextRepo = remainingRepos.length > 0 ? remainingRepos[0].name : "";
+            set({ repoName: nextRepo, messages: [], currentSessionId: null });
+          }
+          
+          await get().fetchSessions();
+          return true;
+        } catch (e) {
+          console.error("Failed to delete repo:", e);
+          throw e;
+        }
+      },
       
       fetchSessions: async () => {
         const { session } = get();
         if (!session) return;
         try {
-          const res = await axios.get(`${API_URL}/api/chats`, {
-            headers: { "Authorization": `Bearer ${session.access_token}` }
-          });
+          const res = await apiClient.get('/api/chats');
           set({ sessions: res.data });
         } catch (e) {
           console.error(e);
@@ -110,9 +128,7 @@ export const useChatStore = create<ChatState>()(
         const { session } = get();
         if (!session) return;
         try {
-          const res = await axios.get(`${API_URL}/api/chats/${sessionId}`, {
-            headers: { "Authorization": `Bearer ${session.access_token}` }
-          });
+          const res = await apiClient.get(`/api/chats/${sessionId}`);
           set({ messages: res.data, currentSessionId: sessionId });
         } catch (e) {
           console.error(e);

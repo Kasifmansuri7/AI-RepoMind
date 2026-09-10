@@ -1,81 +1,239 @@
 "use client";
 
-import { useEffect } from "react";
-import { Sparkles, GitBranch, LogOut, MessageSquare, Plus } from "lucide-react";
-import { useChatStore } from "@/store/chatStore";
+import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Sparkles, 
+  GitBranch, 
+  LogOut, 
+  MessageSquare, 
+  Plus, 
+  ChevronDown, 
+  Check, 
+  Trash2,
+  FolderGit2
+} from "lucide-react";
+import { useChatStore, Repo } from "@/store/chatStore";
+import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
-  const { tenantId, repos, repoName, setRepoName, sessions, fetchRepos, fetchSessions, fetchMessages, logout } = useChatStore();
+  const { 
+    tenantId, 
+    repos, 
+    repoName, 
+    setRepoName, 
+    sessions, 
+    fetchRepos, 
+    fetchSessions, 
+    fetchMessages, 
+    logout 
+  } = useChatStore();
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [repoToDelete, setRepoToDelete] = useState<Repo | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchRepos();
     fetchSessions();
   }, [fetchRepos, fetchSessions]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const activeRepo = repos.find((r) => r.name === repoName) || (repos.length > 0 ? repos[0] : null);
+
   return (
-    <div className="w-72 glass border-r border-white/5 flex flex-col z-10">
-      <div className="p-4 border-b border-white/5 flex items-center gap-3">
-        <Sparkles className="w-6 h-6 text-blue-400" />
-        <span className="font-semibold text-lg tracking-wide">RepoMind</span>
-      </div>
-      
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Repository</p>
-            <button onClick={onOpenIngest} className="text-blue-400 hover:text-blue-300 transition">
-                <Plus className="w-4 h-4" />
-            </button>
+    <>
+      <div className="w-72 glass border-r border-white/5 flex flex-col z-10 select-none">
+        <div className="p-4 border-b border-white/5 flex items-center gap-3">
+          <Sparkles className="w-6 h-6 text-blue-400" />
+          <span className="font-semibold text-lg tracking-wide text-white">RepoMind</span>
         </div>
         
-        {repos.length > 0 ? (
-            <select
-              value={repoName}
-              onChange={(e) => setRepoName(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm font-medium text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        {/* Active Repository Section */}
+        <div className="p-4 relative" ref={dropdownRef}>
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Repository</p>
+            <button 
+              onClick={onOpenIngest} 
+              title="Add Repository"
+              className="p-1 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition"
             >
-              {repos.map((r) => (
-                <option key={r.id} value={r.name} className="bg-gray-900">{r.name}</option>
-              ))}
-            </select>
-        ) : (
-            <button onClick={onOpenIngest} className="w-full flex items-center justify-center gap-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl p-3 text-sm hover:bg-blue-600/30 transition">
-               <Plus className="w-4 h-4" /> Add your first repo
+              <Plus className="w-4 h-4" />
             </button>
-        )}
-      </div>
+          </div>
+          
+          {repos.length > 0 ? (
+            <div className="relative">
+              {/* Custom Styled Dropdown Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`w-full bg-white/[0.04] hover:bg-white/[0.07] border ${
+                  isDropdownOpen ? "border-blue-500/40 ring-2 ring-blue-500/20" : "border-white/10 hover:border-white/20"
+                } rounded-xl px-3.5 py-2.5 text-left transition-all duration-150 flex items-center justify-between group shadow-sm`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 group-hover:scale-105 transition-transform shrink-0">
+                    <GitBranch className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-gray-100 truncate">
+                      {activeRepo ? activeRepo.name : "Select repository"}
+                    </span>
+                    <span className="text-[10px] text-gray-400 truncate">
+                      {repos.length} {repos.length === 1 ? "repository" : "repositories"}
+                    </span>
+                  </div>
+                </div>
+                <ChevronDown 
+                  className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${
+                    isDropdownOpen ? "rotate-180 text-blue-400" : "group-hover:text-gray-300"
+                  }`} 
+                />
+              </button>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Chats</p>
-        <div className="space-y-2">
-          {sessions.length > 0 ? sessions.map((s) => (
-             <div 
-               key={s.id} 
-               onClick={() => fetchMessages(s.id)}
-               className="flex items-center gap-3 text-gray-400 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition"
-             >
-               <MessageSquare className="w-4 h-4 shrink-0" />
-               <div className="flex flex-col overflow-hidden">
-                   <span className="text-sm truncate">Chat ({s.repo_id.split('_')[1]})</span>
-                   <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
-               </div>
-             </div>
-          )) : (
-             <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
+              {/* Animated Custom Glassmorphism Dropdown Menu */}
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute top-full left-0 right-0 mt-2 z-40 rounded-xl glass-card p-1.5 border border-white/10 shadow-2xl backdrop-blur-xl bg-zinc-950/95 max-h-64 overflow-y-auto"
+                  >
+                    <div className="space-y-1">
+                      {repos.map((r) => {
+                        const isSelected = r.name === (activeRepo?.name || repoName);
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => {
+                              setRepoName(r.name);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition group ${
+                              isSelected
+                                ? "bg-blue-600/15 text-blue-300 border border-blue-500/20"
+                                : "hover:bg-white/5 text-gray-300 hover:text-white"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <FolderGit2 className={`w-4 h-4 shrink-0 ${isSelected ? "text-blue-400" : "text-gray-500 group-hover:text-gray-300"}`} />
+                              <span className="text-sm font-medium truncate">{r.name}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isSelected && (
+                                <Check className="w-3.5 h-3.5 text-blue-400" />
+                              )}
+                              <button
+                                type="button"
+                                title={`Delete ${r.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsDropdownOpen(false);
+                                  setRepoToDelete(r);
+                                }}
+                                className="p-1 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/20 transition opacity-60 group-hover:opacity-100"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="border-t border-white/5 my-1.5 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          onOpenIngest();
+                        }}
+                        className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-medium text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add new repository</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <button 
+              onClick={onOpenIngest} 
+              className="w-full flex items-center justify-center gap-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl p-3 text-sm hover:bg-blue-600/30 transition font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add your first repo
+            </button>
           )}
         </div>
+
+        {/* Recent Chats Section */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Chats</p>
+          <div className="space-y-2">
+            {sessions.length > 0 ? (
+              sessions.map((s) => (
+                <div 
+                  key={s.id} 
+                  onClick={() => fetchMessages(s.id)}
+                  className="flex items-center gap-3 text-gray-400 p-2.5 hover:bg-white/5 rounded-lg cursor-pointer transition group"
+                >
+                  <MessageSquare className="w-4 h-4 shrink-0 text-gray-500 group-hover:text-blue-400 transition-colors" />
+                  <div className="flex flex-col overflow-hidden min-w-0">
+                    <span className="text-sm truncate text-gray-300 group-hover:text-white transition-colors">
+                      Chat ({s.repo_id.split('_').slice(1).join('_') || s.repo_id})
+                    </span>
+                    <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
+            )}
+          </div>
+        </div>
+
+        {/* User Profile / Logout Section */}
+        <div className="p-4 border-t border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm">
+              {tenantId ? tenantId.charAt(0).toUpperCase() : "U"}
+            </div>
+            <span className="text-sm text-gray-300 truncate max-w-[110px]" title={tenantId}>
+              {tenantId}
+            </span>
+          </div>
+          <button 
+            onClick={logout} 
+            title="Log out"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="p-4 border-t border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-sm font-bold">
-            {tenantId.charAt(0).toUpperCase()}
-          </div>
-          <span className="text-sm text-gray-300 truncate max-w-[100px]">{tenantId}</span>
-        </div>
-        <button onClick={logout} className="text-gray-500 hover:text-white transition">
-          <LogOut className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
+      {/* Repository Deletion Confirmation Modal */}
+      <DeleteRepoModal
+        isOpen={!!repoToDelete}
+        repo={repoToDelete}
+        onClose={() => setRepoToDelete(null)}
+      />
+    </>
   );
 }

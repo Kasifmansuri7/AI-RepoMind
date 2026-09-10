@@ -1,9 +1,10 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from backend.ingestion.embedder import Embedder
+from backend.constants import COLLECTION_NAME
 
 class CodeSearcher:
-    def __init__(self, q_client: QdrantClient, embedder: Embedder, collection_name: str = "codebase_chunks"):
+    def __init__(self, q_client: QdrantClient, embedder: Embedder, collection_name: str = COLLECTION_NAME):
         self.q_client = q_client
         self.embedder = embedder
         self.collection_name = collection_name
