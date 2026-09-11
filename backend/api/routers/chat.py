@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     message: str
     repo_name: str
     session_id: str = None
+    mode: str = "ask"
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -68,29 +69,39 @@ async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
         
         final_answer = ""
         try:
-            # We use astream to stream the state updates as nodes finish
-            async for chunk in agent_graph.astream(initial_state):
-                for node, state in chunk.items():
-                    if node == "planner":
-                        yield {"event": "status", "data": "Planning solution and searching codebase..."}
-                    elif node == "search":
-                        yield {"event": "status", "data": "Analyzing retrieved code snippets..."}
-                    elif node == "coder":
-                        yield {"event": "status", "data": "Drafting code..."}
-                    elif node == "reviewer":
-                        action = state.get('review_action')
-                        if action == "approve":
-                            yield {"event": "status", "data": "Review passed! Sending final response..."}
-                        elif action == "replan":
-                            yield {"event": "status", "data": "Missing context. Rethinking search strategy..."}
-                        else:
-                            yield {"event": "status", "data": "Found issues in draft. Rewriting code..."}
+            if body.mode == "ask":
+                yield {"event": "status", "data": "Thinking..."}
+                llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+                messages = [
+                    SystemMessage(content=f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. Provide a fast, concise answer. When greeting the user or responding to general queries, ALWAYS explicitly mention the repository name you are assisting with (e.g., 'Hello! I'm ready to help you with the {body.repo_name} repository.')."),
+                    HumanMessage(content=body.message)
+                ]
+                response = await llm.ainvoke(messages)
+                final_answer = response.content
+            else:
+                # We use astream to stream the state updates as nodes finish
+                async for chunk in agent_graph.astream(initial_state):
+                    for node, state in chunk.items():
+                        if node == "planner":
+                            yield {"event": "status", "data": "Planning solution and searching codebase..."}
+                        elif node == "search":
+                            yield {"event": "status", "data": "Analyzing retrieved code snippets..."}
+                        elif node == "coder":
+                            yield {"event": "status", "data": "Drafting code..."}
+                        elif node == "reviewer":
+                            action = state.get('review_action')
+                            if action == "approve":
+                                yield {"event": "status", "data": "Review passed! Sending final response..."}
+                            elif action == "replan":
+                                yield {"event": "status", "data": "Missing context. Rethinking search strategy..."}
+                            else:
+                                yield {"event": "status", "data": "Found issues in draft. Rewriting code..."}
                             
-                # Save the final state to get the draft code
-                node_name = list(chunk.keys())[0]
-                if "draft_code" in chunk[node_name]:
-                    final_answer = chunk[node_name]["draft_code"]
-                    
+                    # Save the final state to get the draft code
+                    node_name = list(chunk.keys())[0]
+                    if "draft_code" in chunk[node_name]:
+                        final_answer = chunk[node_name]["draft_code"]
+                        
             yield {"event": "message", "data": json.dumps({"content": final_answer, "session_id": session_id})}
             
             # Save assistant message to DB

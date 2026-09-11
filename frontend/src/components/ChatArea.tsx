@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 
 export function ChatArea() {
-  const { session, repoName, messages, addMessage } = useChatStore();
+  const { session, repoName, messages, addMessage, sessions, currentSessionId, fetchSessions, setCurrentSessionId } = useChatStore();
+  const currentSession = sessions.find(s => s.id === currentSessionId);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [mode, setMode] = useState<"ask" | "plan">("ask");
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -26,13 +28,13 @@ export function ChatArea() {
     addMessage({ role: "user", content: msgText });
     setInput("");
     setIsLoading(true);
-    setStatus("Initializing agent...");
+    setStatus("Thinking...");
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
       const res = await axios.post(`${API_URL}/api/chat`, 
-        { message: msgText, repo_name: repoName },
+        { message: msgText, repo_name: repoName, mode, session_id: currentSessionId },
         {
           headers: { "Authorization": `Bearer ${session?.access_token}` },
           responseType: 'stream',
@@ -52,7 +54,7 @@ export function ChatArea() {
         if (done) break;
         
         const chunk = decoder.decode(value);
-        const lines = chunk.split("\n\n");
+        const lines = chunk.split("\n");
         
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -64,9 +66,13 @@ export function ChatArea() {
                 const parsed = JSON.parse(dataStr);
                 finalContent = parsed.content;
                 addMessage({ role: "assistant", content: finalContent });
+                if (parsed.session_id && !currentSessionId) {
+                  setCurrentSessionId(parsed.session_id);
+                  fetchSessions();
+                }
                 setStatus("");
               } catch {
-                 // Ignore partial json parse errors
+                 console.error("Error parsing JSON: ", dataStr)
               }
             } else {
               setStatus(dataStr);
@@ -87,6 +93,17 @@ export function ChatArea() {
     <div className="flex-1 flex flex-col relative">
       <div className="absolute inset-0 overflow-y-auto p-6 scroll-smooth pb-40">
         <div className="max-w-4xl mx-auto space-y-6">
+          {currentSession && messages.length > 0 && (
+            <div className="flex items-center gap-2 mb-8 pb-4 border-b border-white/10">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              <h2 className="text-xl font-bold">{currentSession.title || 'New Chat'}</h2>
+              <span className="px-2 py-1 bg-white/5 rounded-md text-xs text-gray-400 ml-auto border border-white/5 flex items-center gap-1">
+                <Database className="w-3 h-3" />
+                {currentSession.repo_id.split('_').slice(1).join('_') || repoName}
+              </span>
+            </div>
+          )}
+
           {messages.length === 0 && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
@@ -154,7 +171,29 @@ export function ChatArea() {
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-20">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto flex flex-col gap-3">
+          
+          <div className="flex justify-center">
+            <div className="bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10 flex items-center gap-1">
+              <button
+                onClick={() => setMode("ask")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  mode === "ask" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-gray-400 hover:text-gray-200 border border-transparent"
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" /> Ask
+              </button>
+              <button
+                onClick={() => setMode("plan")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  mode === "plan" ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "text-gray-400 hover:text-gray-200 border border-transparent"
+                }`}
+              >
+                <Brain className="w-4 h-4" /> Composer
+              </button>
+            </div>
+          </div>
+
           <form 
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
             className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all"
@@ -175,8 +214,10 @@ export function ChatArea() {
               <Send className="w-5 h-5" />
             </button>
           </form>
-          <p className="text-center text-xs text-gray-500 mt-3">
-            AI-RepoMind uses LangGraph to autonomously reason, search, and code.
+          <p className="text-center text-xs text-gray-500 mt-1">
+            {mode === "ask" 
+              ? "Ask mode provides fast answers using lightweight LLM chat." 
+              : "Composer mode autonomously reason, search, and generate code."}
           </p>
         </div>
       </div>

@@ -34,9 +34,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   } = useChatStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isChatFilterDropdownOpen, setIsChatFilterDropdownOpen] = useState(false);
   const [repoToDelete, setRepoToDelete] = useState<Repo | null>(null);
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
+  const [chatFilterRepo, setChatFilterRepo] = useState<string>("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchRepos();
@@ -48,6 +51,9 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (chatFilterDropdownRef.current && !chatFilterDropdownRef.current.contains(event.target as Node)) {
+        setIsChatFilterDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -191,44 +197,106 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
         </div>
 
         {/* Recent Chats Section */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Chats</p>
-          <div className="space-y-2">
-            {sessions.length > 0 ? (
-              sessions.map((s) => (
-                <div 
-                  key={s.id} 
-                  onClick={() => fetchMessages(s.id)}
-                  className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition group ${
-                    currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
-                  }`}
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+          <div className="flex items-center justify-between mb-3 relative" ref={chatFilterDropdownRef}>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Chats</p>
+            
+            <button
+              type="button"
+              onClick={() => setIsChatFilterDropdownOpen(!isChatFilterDropdownOpen)}
+              className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2 py-1 text-[10px] text-gray-300 transition-colors shadow-sm"
+            >
+              <span className="max-w-[80px] truncate">
+                {chatFilterRepo === "all" ? "All Repos" : chatFilterRepo}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isChatFilterDropdownOpen ? "rotate-180 text-blue-400" : ""}`} />
+            </button>
+
+            <AnimatePresence>
+              {isChatFilterDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute top-full right-0 mt-1.5 w-40 z-40 rounded-xl glass-card p-1.5 border border-white/10 shadow-xl backdrop-blur-xl bg-zinc-950/95 max-h-48 overflow-y-auto"
                 >
-                  <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-2">
-                    <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
-                    <div className="flex flex-col overflow-hidden min-w-0">
-                      <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
-                        {s.title || `Chat (${s.repo_id.split('_').slice(1).join('_') || s.repo_id})`}
-                      </span>
-                      <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
-                    </div>
+                  <div className="space-y-0.5">
+                    <button
+                      onClick={() => {
+                        setChatFilterRepo("all");
+                        setIsChatFilterDropdownOpen(false);
+                      }}
+                      className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                        chatFilterRepo === "all" ? "bg-blue-500/20 text-blue-300" : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="truncate">All Repos</span>
+                      {chatFilterRepo === "all" && <Check className="w-3 h-3 text-blue-400" />}
+                    </button>
+                    
+                    {repos.map(r => (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          setChatFilterRepo(r.name);
+                          setIsChatFilterDropdownOpen(false);
+                        }}
+                        className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                          chatFilterRepo === r.name ? "bg-blue-500/20 text-blue-300" : "text-gray-300 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        <span className="truncate">{r.name}</span>
+                        {chatFilterRepo === r.name && <Check className="w-3 h-3 text-blue-400" />}
+                      </button>
+                    ))}
                   </div>
-                  
-                  <button
-                    type="button"
-                    title="Delete Chat"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatToDelete(s);
-                    }}
-                    className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/20 transition opacity-0 group-hover:opacity-100 shrink-0"
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="space-y-2">
+            {(() => {
+              const displaySessions = chatFilterRepo !== "all"
+                ? sessions.filter(s => s.repo_id.endsWith(`_${chatFilterRepo}`))
+                : sessions;
+              
+              return displaySessions.length > 0 ? (
+                displaySessions.map((s) => (
+                  <div 
+                    key={s.id} 
+                    onClick={() => fetchMessages(s.id)}
+                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition group ${
+                      currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
-            )}
+                    <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-2">
+                      <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
+                      <div className="flex flex-col overflow-hidden min-w-0">
+                        <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
+                          {s.title || `Chat (${s.repo_id.split('_').slice(1).join('_') || s.repo_id})`}
+                        </span>
+                        <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      title="Delete Chat"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatToDelete(s);
+                      }}
+                      className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/20 transition opacity-0 group-hover:opacity-100 shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
+              );
+            })()}
           </div>
         </div>
 
