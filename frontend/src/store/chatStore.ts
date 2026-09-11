@@ -149,7 +149,7 @@ export const useChatStore = create<ChatState>()(
           const remainingSessions = sessions.filter(s => s.id !== sessionId);
           set({ sessions: remainingSessions });
           
-          if (currentSessionId === sessionId) {
+          if (currentSessionId === sessionId || !remainingSessions.some(s => s.id === currentSessionId)) {
             set({ messages: [], currentSessionId: null });
           }
           
