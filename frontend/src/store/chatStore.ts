@@ -25,6 +25,10 @@ interface ChatState {
   messagesPage: number;
   hasMoreMessages: boolean;
   
+  isReposLoading: boolean;
+  isSessionsLoading: boolean;
+  isMessagesLoading: boolean;
+  
   initializeAuth: () => void;
   logout: () => Promise<void>;
   
@@ -32,6 +36,7 @@ interface ChatState {
   setCurrentSessionId: (id: string | null) => void;
   setChatSearchQuery: (query: string) => void;
   addMessage: (msg: Message) => void;
+  startNewChat: () => void;
   
   fetchRepos: () => Promise<void>;
   deleteRepo: (repoId: string) => Promise<boolean>;
@@ -58,6 +63,10 @@ export const useChatStore = create<ChatState>()(
       messagesPage: 1,
       hasMoreMessages: false,
       currentSessionId: null,
+      
+      isReposLoading: false,
+      isSessionsLoading: false,
+      isMessagesLoading: false,
       
       initializeAuth: () => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -92,6 +101,12 @@ export const useChatStore = create<ChatState>()(
       setRepoName: (name) => set({ repoName: name }),
       setCurrentSessionId: (id) => set({ currentSessionId: id }),
       setChatSearchQuery: (query) => set({ chatSearchQuery: query }),
+      startNewChat: () => set({ 
+        currentSessionId: null, 
+        messages: [], 
+        messagesPage: 1, 
+        hasMoreMessages: false 
+      }),
       addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
       updateLastMessage: (content) => set((state) => {
         const msgs = [...state.messages];
@@ -104,6 +119,7 @@ export const useChatStore = create<ChatState>()(
       fetchRepos: async () => {
         const { session } = get();
         if (!session) return;
+        set({ isReposLoading: true });
         try {
           const res = await apiClient.get('/api/repos');
           const data = res.data;
@@ -113,6 +129,8 @@ export const useChatStore = create<ChatState>()(
           }
         } catch (e) {
           console.error(e);
+        } finally {
+          set({ isReposLoading: false });
         }
       },
 
@@ -142,6 +160,10 @@ export const useChatStore = create<ChatState>()(
       fetchSessions: async (page = 1, repoFilter = "all") => {
         const { session, chatSearchQuery, tenantId } = get();
         if (!session) return;
+        
+        // Only set loading for initial fetch, not pagination
+        if (page === 1) set({ isSessionsLoading: true });
+        
         try {
           const params = new URLSearchParams({ page: page.toString(), limit: "20" });
           if (chatSearchQuery) params.append("search", chatSearchQuery);
@@ -155,12 +177,17 @@ export const useChatStore = create<ChatState>()(
           }));
         } catch (e) {
           console.error(e);
+        } finally {
+          if (page === 1) set({ isSessionsLoading: false });
         }
       },
       
       fetchMessages: async (sessionId: string, page = 1) => {
         const { session } = get();
         if (!session) return;
+        
+        if (page === 1) set({ isMessagesLoading: true });
+        
         try {
           const params = new URLSearchParams({ page: page.toString(), limit: "50" });
           const res = await apiClient.get(`/api/chats/${sessionId}?${params.toString()}`);
@@ -172,6 +199,8 @@ export const useChatStore = create<ChatState>()(
           }));
         } catch (e) {
           console.error(e);
+        } finally {
+          if (page === 1) set({ isMessagesLoading: false });
         }
       },
       

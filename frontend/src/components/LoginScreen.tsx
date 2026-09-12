@@ -2,38 +2,12 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Terminal, Loader2 } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/utils/supabase/client";
 
 export function LoginScreen() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        setMessage("Check your email for the confirmation link!");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred during authentication.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
@@ -54,7 +28,6 @@ export function LoginScreen() {
         </p>
         
         {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
-        {message && <p className="text-green-400 text-sm text-center mb-4">{message}</p>}
 
         <button
           onClick={async () => {
@@ -63,8 +36,12 @@ export function LoginScreen() {
               await supabase.auth.signInWithOAuth({
                 provider: 'google',
               });
-            } catch (err: any) {
-              setError(err.message || "Failed to authenticate with Google.");
+            } catch (err: unknown) {
+              if (err instanceof Error) {
+                setError(err.message || "Failed to authenticate with Google.");
+              } else {
+                setError("Failed to authenticate with Google.");
+              }
               setLoading(false);
             }
           }}

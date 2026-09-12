@@ -30,13 +30,15 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
     fetchRepos, 
     fetchSessions, 
     fetchMessages, 
-    deleteSession,
     currentSessionId,
     logout,
     chatSearchQuery,
     setChatSearchQuery,
     sessionsPage,
-    hasMoreSessions
+    hasMoreSessions,
+    isReposLoading,
+    isSessionsLoading,
+    startNewChat
   } = useChatStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -218,6 +220,8 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                 )}
               </AnimatePresence>
             </div>
+          ) : isReposLoading ? (
+             <Skeleton className="w-full h-12 rounded-xl" />
           ) : (
             <button 
               onClick={onOpenIngest} 
@@ -230,19 +234,30 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
 
         {/* Recent Chats Section */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+
           <div className="flex items-center justify-between mb-3 relative" ref={chatFilterDropdownRef}>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Chats</p>
             
-            <button
-              type="button"
-              onClick={() => setIsChatFilterDropdownOpen(!isChatFilterDropdownOpen)}
-              className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2 py-1 text-[10px] text-gray-300 transition-colors shadow-sm"
-            >
-              <span className="max-w-[80px] truncate">
-                {chatFilterRepo === "all" ? "All Repos" : chatFilterRepo}
-              </span>
-              <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isChatFilterDropdownOpen ? "rotate-180 text-blue-400" : ""}`} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsChatFilterDropdownOpen(!isChatFilterDropdownOpen)}
+                className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2 py-1 text-[10px] text-gray-300 transition-colors shadow-sm"
+              >
+                <span className="max-w-[80px] truncate">
+                  {chatFilterRepo === "all" ? "All Repos" : chatFilterRepo}
+                </span>
+                <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isChatFilterDropdownOpen ? "rotate-180 text-blue-400" : ""}`} />
+              </button>
+
+              <button 
+                onClick={startNewChat} 
+                title="New Chat"
+                className="p-1 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
 
             <AnimatePresence>
               {isChatFilterDropdownOpen && (
@@ -299,8 +314,16 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
             />
           </div>
 
+
           <div className="space-y-2">
-            {sessions.length > 0 ? (
+            {isSessionsLoading && sessions.length === 0 ? (
+               <div className="py-2 flex flex-col gap-2">
+                 <Skeleton className="h-12 w-full rounded-lg" />
+                 <Skeleton className="h-12 w-full rounded-lg opacity-80" />
+                 <Skeleton className="h-12 w-full rounded-lg opacity-60" />
+                 <Skeleton className="h-12 w-full rounded-lg opacity-40" />
+               </div>
+            ) : sessions.length > 0 ? (
               sessions.map((s) => (
                   <div 
                     key={s.id} 
@@ -340,7 +363,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               ) : (
                 <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
               )}
-              {hasMoreSessions && (
+              {(hasMoreSessions || (isSessionsLoading && sessions.length > 0)) && (
                 <div ref={observerRef} className="py-2 flex flex-col gap-2">
                   <Skeleton className="h-12 w-full rounded-lg" />
                   <Skeleton className="h-12 w-full rounded-lg opacity-70" />

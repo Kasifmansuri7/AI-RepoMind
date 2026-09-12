@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -13,7 +13,8 @@ export function ChatArea() {
   const { 
     session, repoName, messages, addMessage, sessions, 
     currentSessionId, fetchSessions, setCurrentSessionId, 
-    updateLastMessage, fetchMessages, messagesPage, hasMoreMessages 
+    updateLastMessage, fetchMessages, messagesPage, hasMoreMessages,
+    isMessagesLoading
   } = useChatStore();
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const [input, setInput] = useState("");
@@ -95,7 +96,9 @@ export function ChatArea() {
                 const parsed = JSON.parse(dataStr);
                 finalContent += parsed.token;
                 updateLastMessage(finalContent);
-              } catch (e) {}
+              } catch {
+                // Ignore parse errors for partial chunks
+              }
             } else if (line.includes('"content"')) {
               try {
                 const parsed = JSON.parse(dataStr);
@@ -142,29 +145,61 @@ export function ChatArea() {
             </div>
           )}
 
-          {messages.length === 0 && (
+          {isMessagesLoading && messages.length === 0 ? (
+            <div className="flex flex-col gap-6 py-4">
+              <div className="flex gap-4 p-4 w-full justify-end">
+                <Skeleton className="h-16 w-[40%] rounded-xl" />
+                <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+              </div>
+              <div className="flex gap-4 p-4 w-full justify-start">
+                <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+                <Skeleton className="h-24 w-[70%] rounded-xl" />
+              </div>
+              <div className="flex gap-4 p-4 w-full justify-end">
+                <Skeleton className="h-12 w-[30%] rounded-xl" />
+                <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+              </div>
+              <div className="flex gap-4 p-4 w-full justify-start">
+                <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+                <Skeleton className="h-32 w-[60%] rounded-xl" />
+              </div>
+            </div>
+          ) : messages.length === 0 && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center h-[50vh] text-center"
+              className="flex flex-col items-center justify-center min-h-[55vh] text-center px-4"
             >
-              <div className="w-16 h-16 bg-blue-500/10 rounded-2xl border border-blue-500/20 flex items-center justify-center mb-6">
-                <Database className="w-8 h-8 text-blue-400" />
+              <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl border border-blue-500/20 flex items-center justify-center mb-6 shadow-sm">
+                  <Database className="w-8 h-8 text-blue-400" />
+                </div>
+                <h2 className="text-3xl font-bold mb-3 tracking-tight text-white">
+                  Welcome to {repoName}
+                </h2>
+                <p className="text-gray-400 text-base leading-relaxed mb-10">
+                  I can analyze architecture, find bugs, write new features, and explain complex logic using the LangGraph agent loop.
+                </p>
               </div>
-              <h2 className="text-2xl font-bold mb-2">How can I help you with {repoName}?</h2>
-              <p className="text-gray-400 max-w-md">
-                I can analyze architecture, find bugs, write new features, and explain complex logic using the LangGraph agent loop.
-              </p>
               
-              <div className="flex gap-3 mt-8">
-                {["Explain the architecture", "Find bugs in chunker.py"].map((quickMsg) => (
-                  <button
+              <div className="w-full flex flex-wrap justify-center gap-3">
+                {[
+                  "Explain the architecture",
+                  "Find bugs in chunker.py",
+                  "Write a new feature",
+                  "Refactor database layer"
+                ].map((quickMsg, i) => (
+                  <motion.button
                     key={quickMsg}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 * i, duration: 0.4 }}
                     onClick={() => sendMessage(quickMsg)}
-                    className="px-4 py-2 rounded-full glass text-sm hover:bg-white/10 transition border border-white/10"
+                    className="px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-sm text-gray-300 hover:text-white flex items-center gap-2 shadow-sm"
                   >
-                    {quickMsg}
-                  </button>
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>{quickMsg}</span>
+                  </motion.button>
                 ))}
               </div>
             </motion.div>

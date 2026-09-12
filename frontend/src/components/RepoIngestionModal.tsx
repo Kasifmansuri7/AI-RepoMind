@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, GitBranch, Folder, Loader2, Server, Ban } from "lucide-react";
+import { X, GitBranch, Loader2, Server, Ban } from "lucide-react";
 import apiClient from "@/utils/apiClient";
 import { useChatStore } from "@/store/chatStore";
 
@@ -15,7 +15,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [branches, setBranches] = useState<string[]>([]);
   const [selectedBranch, setSelectedBranch] = useState("");
   const [isFetchingBranches, setIsFetchingBranches] = useState(false);
-  const { session, fetchRepos, setRepoName } = useChatStore();
+  const { fetchRepos, setRepoName } = useChatStore();
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
@@ -60,9 +60,15 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
         setStatus("No branches found or local repo.");
         setBranches([]);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      const errMsg = e.response?.data?.detail || "Failed to fetch branches. Ensure it's a valid remote Git URL.";
+      let errMsg = "Failed to fetch branches. Ensure it's a valid remote Git URL.";
+      if (e && typeof e === 'object' && 'response' in e) {
+        const responseError = e as { response?: { data?: { detail?: string } } };
+        errMsg = responseError.response?.data?.detail || errMsg;
+      } else if (e instanceof Error) {
+        errMsg = e.message || errMsg;
+      }
       setStatus(errMsg);
       setBranches([]);
     }
@@ -152,8 +158,9 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
           }
         }
       }
-    } catch (err: any) {
-      if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") {
+    } catch (err: unknown) {
+      const errorObj = err as any;
+      if (errorObj?.name === "CanceledError" || errorObj?.code === "ERR_CANCELED") {
         // User-initiated cancel, don't show error
         return;
       }
