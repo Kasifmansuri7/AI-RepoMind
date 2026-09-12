@@ -4,9 +4,9 @@ import apiClient from '@/utils/apiClient';
 import { supabase } from '@/utils/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
-export type Message = { role: "user" | "assistant", content: string };
+export type Message = { id?: string, role: "user" | "assistant", content: string, created_at?: string };
 export type Repo = { id: string, name: string, url: string };
-export type ChatSession = { id: string, repo_id: string, title?: string, created_at: string };
+export type ChatSession = { id: string, repo_id: string, title?: string, created_at: string, parent_session_id?: string };
 
 interface ChatState {
   tenantId: string;
@@ -44,6 +44,7 @@ interface ChatState {
   fetchMessages: (sessionId: string, page?: number) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<boolean>;
   updateLastMessage: (content: string) => void;
+  forkChat: (sessionId: string, messageId: string) => Promise<string>;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -220,6 +221,27 @@ export const useChatStore = create<ChatState>()(
           return true;
         } catch (e) {
           console.error("Failed to delete chat session:", e);
+          throw e;
+        }
+      },
+      
+      forkChat: async (sessionId: string, messageId: string) => {
+        const { session } = get();
+        if (!session) return "";
+        try {
+          const res = await apiClient.post(`/api/chats/${sessionId}/fork`, { message_id: messageId });
+          const newSessionId = res.data.new_session_id;
+          
+          // Switch to new session
+          set({ currentSessionId: newSessionId, messages: [], messagesPage: 1, hasMoreMessages: false });
+          
+          // Refresh sessions and messages
+          await get().fetchSessions(1);
+          await get().fetchMessages(newSessionId, 1);
+          
+          return newSessionId;
+        } catch (e) {
+          console.error("Failed to fork chat:", e);
           throw e;
         }
       }

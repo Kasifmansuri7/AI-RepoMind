@@ -350,7 +350,11 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                     }`}
                   >
                     <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-2">
-                      <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
+                      {s.parent_session_id ? (
+                        <GitBranch className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
+                      ) : (
+                        <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
+                      )}
                       <div className="flex flex-col overflow-hidden min-w-0 gap-0.5">
                         <div className="flex items-center gap-1.5 overflow-hidden">
                           <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
@@ -380,7 +384,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               ) : (
                 <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
               )}
-              {(hasMoreSessions || (isSessionsLoading && sessions.length > 0)) && (
+              {hasMoreSessions && (
                 <div ref={observerRef} className="py-2 flex flex-col gap-2">
                   <Skeleton className="h-12 w-full rounded-lg" />
                   <Skeleton className="h-12 w-full rounded-lg opacity-70" />

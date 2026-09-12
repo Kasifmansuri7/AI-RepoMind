@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X, GitBranch } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -15,7 +15,7 @@ export function ChatArea() {
     session, repoName, messages, addMessage, sessions, 
     currentSessionId, fetchSessions, setCurrentSessionId, 
     updateLastMessage, fetchMessages, messagesPage, hasMoreMessages,
-    isMessagesLoading
+    isMessagesLoading, forkChat
   } = useChatStore();
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const [input, setInput] = useState("");
@@ -245,7 +245,7 @@ export function ChatArea() {
                   <Sparkles className="w-4 h-4" />
                 </div>
               )}
-              <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
+              <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10 relative">
                 <ReactMarkdown
                   components={{
                     img: ({ node, ...props }) => (
@@ -259,6 +259,15 @@ export function ChatArea() {
                 >
                   {msg.content}
                 </ReactMarkdown>
+                {msg.id && currentSessionId && (
+                  <button 
+                    onClick={() => forkChat(currentSessionId, msg.id!)}
+                    title="Fork conversation from here"
+                    className={`absolute ${msg.role === 'user' ? '-left-10' : '-right-10'} top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white`}
+                  >
+                    <GitBranch className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               {msg.role === "user" && (
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-gray-300 border border-white/10 mt-1">

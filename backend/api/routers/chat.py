@@ -138,8 +138,9 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
     system_prompt = (
         f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. "
         "Provide a fast, concise answer based on the provided codebase context. "
+        "If the user asks a high-level question (e.g., 'Explain the architecture') and the codebase context is empty or limited, DO NOT give a generic refusal. Instead, explain whatever you can infer, and suggest they use **Composer mode** for a deep codebase analysis. "
         "IMPORTANT: You MUST ONLY respond to questions related to the codebase, programming, or technical topics. Do not answer general knowledge questions. "
-        "When greeting the user or responding to general queries, ALWAYS explicitly mention the repository name. "
+        "When greeting the user, explicitly mention the repository name. "
     )
     if summary_text:
         system_prompt += f"\n\nPrevious Conversation Summary:\n{summary_text}"
