@@ -1,22 +1,23 @@
 # AI Codebase Assistant — Project Plan
 
-*A RAG + Multi-Agent + MCP powered tool that reads a codebase and lets you chat with it, ask it to explain code, and ask it to find/fix bugs.*
+_A RAG + Multi-Agent + MCP powered tool that reads a codebase and lets you chat with it, ask it to explain code, and ask it to find/fix bugs._
 
 ---
 
 ## 1. Project Summary
 
-| | |
-|---|---|
-| **What it is** | A tool that indexes a GitHub repository and lets you ask questions about it, get explanations, and request bug fixes — all grounded in the real code, not hallucinated. |
-| **Why it matters** | Combines three in-demand skills in one coherent build: **RAG** (grounded retrieval), **Agents** (multi-step reasoning/orchestration), and **MCP** (Model Context Protocol — plugs directly into Claude Desktop/Code as a native tool). |
-| **Core differentiator** | It dogfoods itself (can answer questions about its own source code) and ships a real MCP server — something very few candidates have on their resume yet. |
+|                         |                                                                                                                                                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What it is**          | A tool that indexes a GitHub repository and lets you ask questions about it, get explanations, and request bug fixes — all grounded in the real code, not hallucinated.                                                                |
+| **Why it matters**      | Combines three in-demand skills in one coherent build: **RAG** (grounded retrieval), **Agents** (multi-step reasoning/orchestration), and **MCP** (Model Context Protocol — plugs directly into Claude Desktop/Code as a native tool). |
+| **Core differentiator** | It dogfoods itself (can answer questions about its own source code) and ships a real MCP server — something very few candidates have on their resume yet.                                                                              |
 
 ---
 
 ## 2. Problem Statement
 
 General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private codebase unless you paste code in manually. This project builds a system that:
+
 1. Reads and understands an entire repository ahead of time.
 2. Answers questions and proposes fixes grounded in the actual code.
 3. Works like a small dev team (plan → code → review) instead of one blind LLM call.
@@ -27,16 +28,19 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 ## 3. Core Concepts Explained
 
 ### RAG (Retrieval-Augmented Generation)
+
 - The repo is parsed and broken into meaningful chunks (functions, classes, doc sections).
 - Chunks are embedded (turned into vectors) and stored in a vector database.
 - When a question comes in, the most relevant chunks are retrieved and given to the LLM as context — so answers are grounded in real code, not guesses.
 
 ### Agents (Multi-step orchestration)
+
 - **Planner agent** — breaks a request into steps (e.g. "look at session handling + token refresh logic").
 - **Coder agent** — uses RAG to pull relevant code, writes an answer or a patch.
 - **Reviewer agent** — checks the output (style, correctness, tests), loops back to the coder if something's wrong.
 
 ### MCP (Model Context Protocol)
+
 - An open protocol (from Anthropic) that lets AI apps like Claude Desktop or Claude Code call external tools directly.
 - This project exposes its RAG search and agent functions as MCP **tools**, so you can literally ask Claude Desktop to "use my codebase assistant" and it calls your backend automatically.
 
@@ -79,6 +83,7 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 ## 5. Component Breakdown
 
 ### 5.1 Ingestion Pipeline
+
 - Clone or watch a target GitHub repo.
 - Parse code with **tree-sitter** (AST-aware chunking — splits by function/class boundaries rather than arbitrary line counts).
 - Parse docs/markdown by section.
@@ -86,11 +91,13 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 - Store chunks + embeddings + metadata (file path, function name, last modified, git blame) in the database.
 
 ### 5.2 RAG Layer
+
 - **Hybrid search**: vector similarity (semantic) + keyword/BM25 (exact symbol/function name matches) — code search benefits heavily from exact matches, not just semantic similarity.
 - **Re-ranking** step before final context is sent to the LLM, to improve precision.
 - This is the layer to go deep on for interview talking points — naive chunking/retrieval is the #1 place these projects fall flat.
 
 ### 5.3 Agent Orchestrator (LangGraph)
+
 - Explicit state machine with 3 nodes: `planner`, `coder`, `reviewer`.
 - Planner decides what info/files are needed.
 - Coder calls the RAG search tool, then generates an answer or patch.
@@ -98,6 +105,7 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 - LangGraph is recommended over black-box agent frameworks because the explicit graph is easy to diagram and explain in interviews.
 
 ### 5.4 MCP Server
+
 - Built with the official MCP SDK (Python or TypeScript).
 - Exposes tools such as:
   - `search_codebase(query)`
@@ -107,10 +115,12 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 - Runs as a standalone process that Claude Desktop/Code (or any MCP-compatible client) can connect to.
 
 ### 5.5 Backend API (for the optional custom UI)
+
 - FastAPI service exposing a `/chat` endpoint that internally triggers the RAG + agent pipeline.
 - Async-friendly, easy to extend with auth/rate limiting later.
 
 ### 5.6 Frontend (optional)
+
 - Next.js + Tailwind single-page chat interface.
 - Simple message list + input box — calls the FastAPI backend.
 - Mainly useful for demo videos/screenshots for people who won't install Claude Desktop to test your MCP server directly.
@@ -119,17 +129,17 @@ General-purpose LLMs (ChatGPT, Claude, etc.) have no knowledge of a private code
 
 ## 6. Tech Stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Backend language | Python | Best-supported ecosystem for RAG/agent/MCP tooling |
-| Backend framework | FastAPI | Async, clean REST API for the optional frontend |
-| Vector DB | Qdrant (Docker) or Postgres + pgvector | Either works; pgvector avoids running two separate databases |
-| Metadata store | Postgres | File paths, function names, git info |
-| Embeddings | OpenAI `text-embedding-3-small` or `sentence-transformers` (local) | Cloud for simplicity, local to show cost-awareness |
-| Chunking | tree-sitter (code), custom/unstructured.io (docs) | AST-aware chunking >> naive line splitting |
-| Agent framework | LangGraph | Explicit state machine, easy to explain design decisions |
-| MCP | Official MCP SDK (Python or TypeScript) | Standard protocol, plugs into Claude Desktop/Code |
-| Frontend (optional) | Next.js + Tailwind | Simple, clean, good for demo recordings |
+| Layer               | Choice                                                             | Why                                                          |
+| ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Backend language    | Python                                                             | Best-supported ecosystem for RAG/agent/MCP tooling           |
+| Backend framework   | FastAPI                                                            | Async, clean REST API for the optional frontend              |
+| Vector DB           | Qdrant (Docker) or Postgres + pgvector                             | Either works; pgvector avoids running two separate databases |
+| Metadata store      | Postgres                                                           | File paths, function names, git info                         |
+| Embeddings          | OpenAI `text-embedding-3-small` or `sentence-transformers` (local) | Cloud for simplicity, local to show cost-awareness           |
+| Chunking            | tree-sitter (code), custom/unstructured.io (docs)                  | AST-aware chunking >> naive line splitting                   |
+| Agent framework     | LangGraph                                                          | Explicit state machine, easy to explain design decisions     |
+| MCP                 | Official MCP SDK (Python or TypeScript)                            | Standard protocol, plugs into Claude Desktop/Code            |
+| Frontend (optional) | Next.js + Tailwind                                                 | Simple, clean, good for demo recordings                      |
 
 ---
 
@@ -170,22 +180,26 @@ ai-codebase-assistant/
 ## 9. Build Roadmap (4 Weeks, Demo-able at Every Stage)
 
 ### Week 1 — RAG Foundation
+
 - Build the ingestion pipeline (clone repo → tree-sitter chunking → embeddings → vector DB).
 - Build a basic retrieval function and a simple CLI or script to test queries.
 - **Milestone:** you can ask a question about a repo and get back real, relevant code chunks.
 
 ### Week 2 — MCP Integration
+
 - Wrap the RAG search as an MCP tool.
 - Stand up the MCP server and connect it to Claude Desktop.
 - **Milestone:** you can ask Claude Desktop to use your tool to answer questions about a real repo.
 
 ### Week 3 — Agent Layer
+
 - Build the LangGraph state machine: planner → coder → reviewer.
 - Wire the coder node to call the RAG tool for context.
 - Add a review/retry loop.
 - **Milestone:** you can ask for a bug fix and watch the system plan, write, and self-check the fix.
 
 ### Week 4 — Polish & Presentation
+
 - (Optional) Build the simple Next.js chat UI.
 - Write a strong README with an architecture diagram.
 - Record a short demo video/GIF.
@@ -198,7 +212,7 @@ ai-codebase-assistant/
 1. **Dogfooding** — it can answer questions about its own source code, which makes for a very strong live demo.
 2. **MCP is genuinely new** — very few candidates have shipped a real MCP server; it's a differentiator interviewers will want to ask about.
 3. **Hard retrieval problem, not a toy one** — code retrieval requires AST-aware chunking and hybrid search, which is a legitimate, discussable engineering challenge (vs. "I called an embeddings API on some text").
-4. **Real multi-agent design** — a planner/coder/reviewer loop with actual retry logic shows agent *design* thinking, not just prompt engineering.
+4. **Real multi-agent design** — a planner/coder/reviewer loop with actual retry logic shows agent _design_ thinking, not just prompt engineering.
 5. **Personally useful** — you'll likely use it on your own repos going forward, which tends to produce better-polished, more enthusiastically explained projects.
 
 **Caveat:** the differentiation depends on going deep on the hard decisions (chunking strategy, retrieval failure handling, agent retry logic) — not just wiring together off-the-shelf libraries with default settings.
@@ -210,25 +224,33 @@ ai-codebase-assistant/
 There are several ways to get a repo into the system, ranging from simple to production-grade. Pick the right one per stage of the build.
 
 ### Option 1: GitHub URL (simplest — good for public repos)
+
 User pastes a URL (e.g. `https://github.com/user/repo`) and the backend shallow-clones it.
+
 ```python
 import subprocess
 
 def clone_repo(github_url: str, dest_dir: str):
     subprocess.run(["git", "clone", "--depth", "1", github_url, dest_dir], check=True)
 ```
+
 - `--depth 1` = shallow clone, only latest commit, much faster for large repos.
 - Zero auth complexity. Doesn't work for private repos without a token.
 
 ### Option 2: GitHub URL + Personal Access Token (private repos)
+
 User supplies a URL and a scoped, read-only GitHub token.
+
 ```python
 clone_url = f"https://{token}@github.com/user/repo.git"
 ```
+
 Store the token encrypted, never log it, and scope it to minimal read-only repo access.
 
 ### Option 3: Local folder path (best fit for the MCP server)
+
 Since the MCP server runs locally on the user's own machine (that's how MCP works with Claude Desktop/Code), this is the most natural option — no cloning needed, just walk the filesystem directly.
+
 ```python
 # MCP tool signature
 def index_repo(local_path: str):
@@ -237,6 +259,7 @@ def index_repo(local_path: str):
 ```
 
 ### Option 4: GitHub OAuth (most "product-like," more work — stretch goal)
+
 1. User clicks "Connect GitHub."
 2. OAuth flow returns a scoped access token.
 3. User picks a repo from a dropdown of their own repos.
@@ -245,15 +268,16 @@ def index_repo(local_path: str):
 More impressive to demo, but adds real complexity (OAuth app registration, token refresh, webhook handling). Treat as a stretch goal, not a Week 1 requirement.
 
 ### Option 5: Drag-and-drop / zip upload
+
 User uploads a `.zip` of their project. Useful as a no-auth fallback, but less impressive since it doesn't show real-world integration.
 
 ### Recommended mapping to the build roadmap
 
-| Stage | Input method |
-|---|---|
-| MCP server (Week 2) | **Local folder path** — simplest, matches how MCP actually runs on the user's machine |
-| Optional web UI (Week 4) | **Public GitHub URL** — good demo value, no auth complexity |
-| Stretch goal | GitHub OAuth + private repo support, dropdown repo picker |
+| Stage                    | Input method                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| MCP server (Week 2)      | **Local folder path** — simplest, matches how MCP actually runs on the user's machine |
+| Optional web UI (Week 4) | **Public GitHub URL** — good demo value, no auth complexity                           |
+| Stretch goal             | GitHub OAuth + private repo support, dropdown repo picker                             |
 
 Starting with local path + public URL cloning covers most of the resume/demo value without the OAuth overhead. OAuth can be added later to make it feel like a more polished product.
 
@@ -269,7 +293,41 @@ Starting with local path + public URL cloning covers most of the resume/demo val
 
 ---
 
-## 13. Next Steps
+## 13. Future Enhancements & Proposed Features (Implementation Priority)
+
+### 🟢 Phase 1: High Impact, Low/Medium Effort (Core Foundation)
+
+_These features fix immediate UX problems and improve the core RAG accuracy._
+
+- ✅ **Advanced Hybrid Search (Completed)**: Combine Vector Embeddings (semantic) with BM25 (keyword) for accurate and robust code search.
+- **Pre-Clone Repo Details**: Fetch repo metadata (branches, tags) via public APIs so users can select specific targets before cloning.
+- ✅ **Pagination & Server-Side Filtering (Completed)**: Implement backend pagination, infinite scrolling, and full-text search for managing chat history efficiently.
+- **Context File Generation**: Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
+
+### 🟡 Phase 2: High Impact, Medium Effort (The Differentiators)
+
+_These features add a "Wow" factor and make the tool feel like a premium AI product._
+
+- **UI Revamp**: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
+- **Multi-Modal Uploads**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
+- **Local Directory Mounting & Cloud Integration**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
+- **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
+- **File & Function Annotations**: Generate automated, quick summaries for files or functions when hovering in the frontend.
+
+### 🔴 Phase 3: High Impact, High Effort (The Moonshots)
+
+_Complex, standalone features that require significant engineering but turn the app into an automated teammate._
+
+- **Branched Chats (Tree Structure)**: Allow users to fork a conversation from any historical message to explore multiple problem-solving directions without losing original context.
+- **Frontend File Explorer & Editor**: Embed a file tree and Monaco Editor in the frontend to allow users to make changes directly from the web interface.
+- **Interactive Architecture Graph**: Render a 2D map of the codebase dependencies for visual navigation (e.g., using React Flow).
+- **Automated PR Review Mode**: Analyze Pull Requests against the codebase and act as an AI reviewer for potential bugs.
+- **Code Sandbox Execution**: Run the codebase in a secure browser sandbox (like WebContainers) to test AI fixes before application.
+- **Self-Healing Tests**: Intercept failing test stack traces and suggest automatic fixes in the chat interface.
+
+---
+
+## 14. Next Steps
 
 - [ ] Pick a target repo to index first (your own project, or a well-known open-source repo)
 - [ ] Set up the backend skeleton (FastAPI + Postgres/pgvector or Qdrant via Docker)

@@ -32,11 +32,13 @@ def planner_node(state: AgentState):
     print("--- PLANNER ---")
     system_prompt = (
         "You are a software architect. Create a plan to solve the user's task and "
-        "provide exactly 1-3 highly specific code search queries to find relevant code in the vector database."
+        "provide exactly 1-3 highly specific code search queries to find relevant code in the vector database. "
+        "Use the chat history for context if necessary."
     )
+    user_content = f"Chat History:\n{state.get('chat_history', '')}\n\nCurrent Task: {state['task']}"
     response = planner_llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=state["task"])
+        HumanMessage(content=user_content)
     ])
     
     args = response.tool_calls[0]["args"]
@@ -82,7 +84,7 @@ def coder_node(state: AgentState):
         "If you are modifying code, output the full updated file or snippet."
     )
     
-    user_content = f"Task: {state['task']}\n\nPlan: {state['plan']}\n\nContext:\n{state['context']}"
+    user_content = f"Chat History:\n{state.get('chat_history', '')}\n\nCurrent Task: {state['task']}\n\nPlan: {state['plan']}\n\nContext:\n{state['context']}"
     if state.get("review_feedback"):
         user_content += f"\n\nReviewer Feedback from previous attempt (Fix these issues):\n{state['review_feedback']}"
         

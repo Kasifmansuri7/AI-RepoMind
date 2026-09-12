@@ -2,8 +2,8 @@ from pathlib import Path
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjs
 import tree_sitter_typescript as ttts
-import tree_sitter_jsx as tsjsx
-import tree_sitter_tsx as tstsx
+import tree_sitter_javascript as tsjsx
+import tree_sitter_typescript as tstsx
 from tree_sitter import Language, Parser
 
 def get_parser(extension: str) -> Parser | None:
@@ -13,7 +13,7 @@ def get_parser(extension: str) -> Parser | None:
         elif extension in [".js"]:
             return Parser(Language(tsjs.language()))
         elif extension in [".ts"]:
-            return Parser(Language(tts.language()))
+            return Parser(Language(ttts.language()))
         elif extension in [".jsx"]:
             return Parser(Language(tsjsx.language()))
         elif extension in [".tsx"]:
@@ -23,15 +23,38 @@ def get_parser(extension: str) -> Parser | None:
         print(f"Failed to load parser for {extension}: {e}")
         return None
 
-def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]:
-    """A smarter fallback chunker for non-code files using LangChain."""
+def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200, extension: str = None) -> list[str]:
+    """A smarter fallback chunker for files using LangChain."""
     try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            length_function=len,
-        )
+        from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+        
+        lang_mapping = {
+            ".py": Language.PYTHON,
+            ".js": Language.JS,
+            ".ts": Language.TS,
+            ".tsx": Language.TS,
+            ".java": Language.JAVA,
+            ".cpp": Language.CPP,
+            ".c": Language.CPP,
+            ".go": Language.GO,
+            ".rs": Language.RUST,
+            ".php": Language.PHP,
+            ".html": Language.HTML,
+            ".rb": Language.RUBY,
+        }
+        
+        if extension and extension in lang_mapping:
+            splitter = RecursiveCharacterTextSplitter.from_language(
+                language=lang_mapping[extension],
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+        else:
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                length_function=len,
+            )
         return splitter.split_text(text)
     except ImportError:
         # Fallback to naive if langchain-text-splitters is not installed
@@ -109,12 +132,12 @@ class CodeChunker:
                     # For now, keeping them separate is good for retrieval.
                     raw_chunks = list(dict.fromkeys(ast_chunks)) 
                 else:
-                    raw_chunks = chunk_text(content)
+                    raw_chunks = chunk_text(content, extension=ext)
             except Exception as e:
                 print(f"AST parsing failed for {file_path}: {e}")
-                raw_chunks = chunk_text(content)
+                raw_chunks = chunk_text(content, extension=ext)
         else:
-            raw_chunks = chunk_text(content)
+            raw_chunks = chunk_text(content, extension=ext)
         
         chunks = []
         for i, chunk_text_content in enumerate(raw_chunks):
