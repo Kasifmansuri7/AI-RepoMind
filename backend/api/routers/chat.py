@@ -54,12 +54,69 @@ def get_or_create_session(db, session_id: Optional[str], tenant_id: str, repo_na
         db.commit()
     return session_id
 
-def save_message(db, session_id: str, role: str, content: str):
+def save_message(db, session_id: str, role: str, content: str) -> Message:
     msg = Message(id=str(uuid.uuid4()), session_id=session_id, role=role, content=content)
     db.add(msg)
     db.commit()
+    return msg
 
-async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list, result_ref: dict):
+def summarize_chat_history_task(session_id: str):
+    from backend.db.postgres import SessionLocal
+    db = SessionLocal()
+    try:
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not session:
+            return
+            
+        history_msgs = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+        
+        summary_data = {"text": "", "last_msg_id": None}
+        if session.summary:
+            # Safely parse the existing summary JSON which stores both the text and the ID of the last summarized message
+            try:
+                summary_data = json.loads(session.summary)
+            except:
+                summary_data = {"text": session.summary, "last_msg_id": None}
+                
+        start_idx = 0
+        if summary_data["last_msg_id"]:
+            # Locate where we left off so we only summarize new, unprocessed messages
+            for i, m in enumerate(history_msgs):
+                if m.id == summary_data["last_msg_id"]:
+                    start_idx = i + 1
+                    break
+                    
+        # Grab all unprocessed messages except the 4 most recent ones (to keep immediate context fresh)
+        msgs_to_summarize = history_msgs[start_idx:-4]
+        if len(msgs_to_summarize) < 4:
+            return
+            
+        text_to_summarize = ""
+        if summary_data["text"]:
+            text_to_summarize += f"Previous Summary: {summary_data['text']}\n\n"
+            
+        for m in msgs_to_summarize:
+            text_to_summarize += f"{m.role}: {m.content}\n"
+            
+        # Use a lightweight LLM to roll up the old messages into the existing summary context
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        prompt = (
+            "Summarize the following chat history concisely. "
+            "Retain key technical details, decisions, and context about the codebase. "
+            f"\n\n{text_to_summarize}"
+        )
+        new_summary_text = llm.invoke([HumanMessage(content=prompt)]).content.strip()
+        
+        # Save the new summary and update the pointer to the last message we included in this batch
+        last_msg = msgs_to_summarize[-1]
+        session.summary = json.dumps({"text": new_summary_text, "last_msg_id": last_msg.id})
+        db.commit()
+    except Exception as e:
+        print(f"Background summarization failed: {e}")
+    finally:
+        db.close()
+
+async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list, summary_text: str, result_ref: dict):
     yield {"event": "status", "data": "Searching codebase..."}
     
     q_client = get_qdrant_client()
@@ -80,9 +137,13 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
     system_prompt = (
         f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. "
         "Provide a fast, concise answer based on the provided codebase context. "
+        "IMPORTANT: You MUST ONLY respond to questions related to the codebase, programming, or technical topics. Do not answer general knowledge questions. "
         "When greeting the user or responding to general queries, ALWAYS explicitly mention the repository name. "
-        f"\n\nCodebase Context:\n{context_str}"
     )
+    if summary_text:
+        system_prompt += f"\n\nPrevious Conversation Summary:\n{summary_text}"
+        
+    system_prompt += f"\n\nCodebase Context:\n{context_str}"
     
     messages = [SystemMessage(content=system_prompt)]
     for msg in history_msgs[:-1]:
@@ -101,7 +162,10 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
             
     result_ref["final_answer"] = final_answer
 
-async def stream_plan_mode(body: ChatRequest, tenant_id: str, formatted_history: str, result_ref: dict):
+async def stream_plan_mode(body: ChatRequest, tenant_id: str, formatted_history: str, summary_text: str, result_ref: dict):
+    if summary_text:
+        formatted_history = f"Previous Conversation Summary:\n{summary_text}\n\nRecent Messages:\n{formatted_history}"
+        
     initial_state = {
         "task": body.message,
         "tenant_id": tenant_id,
@@ -135,31 +199,50 @@ async def stream_plan_mode(body: ChatRequest, tenant_id: str, formatted_history:
             
     result_ref["final_answer"] = final_answer
 
+from fastapi import BackgroundTasks
+
 @router.post("/chat")
-async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
+async def chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
     
     ensure_tenant(db, tenant_id)
     session_id = get_or_create_session(db, body.session_id, tenant_id, body.repo_name, body.message)
     save_message(db, session_id, "user", body.message)
     
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    summary_text = ""
+    if session and session.summary:
+        try:
+            summary_data = json.loads(session.summary)
+            summary_text = summary_data.get("text", "")
+        except:
+            summary_text = session.summary
+            
     async def event_generator():
         try:
             history_msgs = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+            
+            # Limit history to the last 6 messages to save tokens if we have a summary strategy
+            recent_msgs = history_msgs[-6:] if len(history_msgs) > 6 else history_msgs
+            
             result_ref = {"final_answer": ""}
             
             if body.mode == "ask":
-                async for event in stream_ask_mode(body, tenant_id, history_msgs, result_ref):
+                async for event in stream_ask_mode(body, tenant_id, recent_msgs, summary_text, result_ref):
                     yield event
             else:
-                formatted_history = "\n".join([f"{m.role}: {m.content}" for m in history_msgs[:-1]])
-                async for event in stream_plan_mode(body, tenant_id, formatted_history, result_ref):
+                formatted_history = "\n".join([f"{m.role}: {m.content}" for m in recent_msgs[:-1]])
+                async for event in stream_plan_mode(body, tenant_id, formatted_history, summary_text, result_ref):
                     yield event
                     
             final_answer = result_ref["final_answer"]
             yield {"event": "message", "data": json.dumps({"content": final_answer, "session_id": session_id})}
             
             save_message(db, session_id, "assistant", final_answer)
+            
+            # Trigger background summarization if history is getting long
+            if len(history_msgs) > 10:
+                background_tasks.add_task(summarize_chat_history_task, session_id)
             
         except Exception as e:
             yield {"event": "error", "data": str(e)}
