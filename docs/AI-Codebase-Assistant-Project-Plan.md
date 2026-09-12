@@ -321,7 +321,6 @@ _Complex, standalone features that require significant engineering but turn the 
 
 - **Branched Chats (Tree Structure)**: Allow users to fork a conversation from any historical message to explore multiple problem-solving directions without losing original context.
 - **Frontend File Explorer & Editor**: Embed a file tree and Monaco Editor in the frontend to allow users to make changes directly from the web interface.
-- **Interactive Architecture Graph**: Render a 2D map of the codebase dependencies for visual navigation (e.g., using React Flow).
 - **Automated PR Review Mode**: Analyze Pull Requests against the codebase and act as an AI reviewer for potential bugs.
 - **Code Sandbox Execution**: Run the codebase in a secure browser sandbox (like WebContainers) to test AI fixes before application.
 - **Self-Healing Tests**: Intercept failing test stack traces and suggest automatic fixes in the chat interface.
