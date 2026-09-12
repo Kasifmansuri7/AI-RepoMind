@@ -310,7 +310,7 @@ _These features fix immediate UX problems and improve the core RAG accuracy._
 _These features add a "Wow" factor and make the tool feel like a premium AI product._
 
 - ✅ **UI Revamp (Completed)**: Modernized the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
-- **Multi-Modal Uploads**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
+- ✅ **Multi-Modal Uploads (Completed)**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
 - **Local Directory Mounting & Cloud Integration**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
 - **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
 - **File & Function Annotations**: Generate automated, quick summaries for files or functions when hovering in the frontend.

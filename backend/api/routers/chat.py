@@ -10,6 +10,7 @@ from backend.agents.graph import agent_graph
 from backend.rag.search import CodeSearcher
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
+from backend.utils.multimodal import parse_multimodal_content
 
 router = APIRouter()
 
@@ -148,11 +149,11 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
     messages = [SystemMessage(content=system_prompt)]
     for msg in history_msgs[:-1]:
         if msg.role == "user":
-            messages.append(HumanMessage(content=msg.content))
+            messages.append(HumanMessage(content=parse_multimodal_content(msg.content)))
         elif msg.role == "assistant":
             messages.append(AIMessage(content=msg.content))
             
-    messages.append(HumanMessage(content=body.message))
+    messages.append(HumanMessage(content=parse_multimodal_content(body.message)))
     
     final_answer = ""
     async for chunk in llm.astream(messages):

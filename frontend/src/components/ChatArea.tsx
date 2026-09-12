@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2 } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 import { Skeleton } from "./Skeleton";
 import { TypingIndicator } from "./TypingIndicator";
+import { supabase } from "@/utils/supabase/client";
 
 export function ChatArea() {
   const { 
@@ -21,7 +22,11 @@ export function ChatArea() {
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<"ask" | "plan">("ask");
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const topOfMessagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,11 +54,17 @@ export function ChatArea() {
   }, [hasMoreMessages, messagesPage, currentSessionId, isFetchingMore, fetchMessages]);
 
   const sendMessage = async (overrideMsg?: string) => {
-    const msgText = overrideMsg || input;
-    if (!msgText.trim()) return;
+    let msgText = overrideMsg || input;
+    if (!msgText.trim() && attachedImages.length === 0) return;
+
+    if (attachedImages.length > 0) {
+      const markdownImages = attachedImages.map(url => `![Attached Image](${url})`).join("\n\n");
+      msgText = msgText ? `${msgText}\n\n${markdownImages}` : markdownImages;
+    }
 
     addMessage({ role: "user", content: msgText });
     setInput("");
+    setAttachedImages([]);
     setIsLoading(true);
     setStatus("Thinking...");
 
@@ -228,7 +239,19 @@ export function ChatArea() {
                 </div>
               )}
               <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    img: ({ node, ...props }) => (
+                      <img 
+                        {...props} 
+                        className="max-w-[150px] sm:max-w-[250px] h-auto rounded-xl border border-white/10 cursor-zoom-in hover:opacity-80 transition-opacity shadow-lg my-2 inline-block"
+                        onClick={() => setSelectedImage(typeof props.src === 'string' ? props.src : null)}
+                      />
+                    )
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
               {msg.role === "user" && (
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-gray-300 border border-white/10 mt-1">
@@ -289,6 +312,22 @@ export function ChatArea() {
             </div>
           </div>
 
+          {attachedImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 p-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
+              {attachedImages.map((url, idx) => (
+                <div key={idx} className="relative group">
+                  <img src={url} alt="Attached preview" className="h-16 w-16 object-cover rounded-lg border border-white/20" />
+                  <button
+                    onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <form 
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
             className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-colors"
@@ -302,9 +341,51 @@ export function ChatArea() {
               className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400"
               disabled={isLoading}
             />
+            
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setIsUploading(true);
+                try {
+                  const filename = `${Date.now()}_${file.name}`;
+                  const { data, error } = await supabase.storage
+                    .from('chat-attachments')
+                    .upload(filename, file);
+                  
+                  if (error) throw error;
+                  
+                  const { data: { publicUrl } } = supabase.storage
+                    .from('chat-attachments')
+                    .getPublicUrl(filename);
+                    
+                  setAttachedImages(prev => [...prev, publicUrl]);
+                } catch (err) {
+                  console.error("Upload failed:", err);
+                  alert("Failed to upload image.");
+                } finally {
+                  setIsUploading(false);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }
+              }}
+            />
+            
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || isLoading}
+              className="p-3 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+            >
+              {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+            </button>
+            
             <button
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={(!input.trim() && attachedImages.length === 0) || isLoading || isUploading}
               className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl transition-colors text-white"
             >
               <Send className="w-5 h-5" />
@@ -317,6 +398,34 @@ export function ChatArea() {
           </p>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm cursor-zoom-out"
+          >
+            <motion.img 
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              src={selectedImage} 
+              alt="Full screen preview" 
+              className="max-w-full max-h-full rounded-2xl shadow-2xl border border-white/20 cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button 
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-6 right-6 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full backdrop-blur-md transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

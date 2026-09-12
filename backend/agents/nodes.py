@@ -4,6 +4,7 @@ from .state import AgentState
 from backend.rag.search import CodeSearcher
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
+from backend.utils.multimodal import parse_multimodal_content
 import json
 
 # We use the reliable gpt-4o-mini for fast, cheap agent interactions
@@ -38,7 +39,7 @@ def planner_node(state: AgentState):
     user_content = f"Chat History:\n{state.get('chat_history', '')}\n\nCurrent Task: {state['task']}"
     response = planner_llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
     args = response.tool_calls[0]["args"]
@@ -90,7 +91,7 @@ def coder_node(state: AgentState):
         
     response = llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
     return {"draft_code": response.content}
@@ -130,7 +131,7 @@ def reviewer_node(state: AgentState):
     
     response = reviewer_llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
     args = response.tool_calls[0]["args"]
