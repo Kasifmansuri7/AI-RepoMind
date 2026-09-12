@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from typing import Optional
+from sqlalchemy import or_
 from backend.db.postgres import get_db
 from backend.db.models import ChatSession, Message
 
@@ -21,7 +22,12 @@ async def get_chats(
         query = query.filter(ChatSession.repo_id == repo_id)
         
     if search:
-        query = query.filter(ChatSession.title.ilike(f"%{search}%"))
+        query = query.outerjoin(Message, ChatSession.id == Message.session_id).filter(
+            or_(
+                ChatSession.title.ilike(f"%{search}%"),
+                Message.content.ilike(f"%{search}%")
+            )
+        ).distinct()
         
     total = query.count()
     sessions = query.order_by(ChatSession.created_at.desc()).offset((page - 1) * limit).limit(limit).all()

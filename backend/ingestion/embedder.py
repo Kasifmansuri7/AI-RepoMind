@@ -8,6 +8,12 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key) if api_key else None
 
+try:
+    from fastembed import SparseTextEmbedding
+    sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+except ImportError:
+    sparse_model = None
+
 class Embedder:
     def __init__(self, model: str = "text-embedding-3-small"):
         self.model = model
@@ -41,3 +47,16 @@ class Embedder:
             model=self.model
         )
         return [data.embedding for data in response.data]
+
+    def embed_sparse_batch(self, texts: list[str]) -> list[dict]:
+        """Generate sparse embeddings for a batch of texts."""
+        if not sparse_model:
+            print("fastembed not installed or model failed to load.")
+            return []
+            
+        valid_texts = [t for t in texts if t.strip()]
+        if not valid_texts:
+            return []
+            
+        embeddings = list(sparse_model.embed(valid_texts))
+        return [{"indices": e.indices.tolist(), "values": e.values.tolist()} for e in embeddings]

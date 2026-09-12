@@ -93,11 +93,22 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
         embedder = Embedder()
         
         q_client = get_qdrant_client()
+        from qdrant_client.models import SparseVectorParams, SparseVector
+        
         if not q_client.collection_exists(collection_name=COLLECTION_NAME):
             q_client.create_collection(
                 collection_name=COLLECTION_NAME,
                 vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+                sparse_vectors_config={"text-sparse": SparseVectorParams()}
             )
+        else:
+            try:
+                q_client.update_collection(
+                    collection_name=COLLECTION_NAME,
+                    sparse_vectors_config={"text-sparse": SparseVectorParams()}
+                )
+            except Exception:
+                pass
             
         total_files = len(files)
         BATCH_SIZE = 100      # Accumulate chunks before flushing
@@ -124,7 +135,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
                 for start in range(0, total, EMBED_SUB_BATCH)
             ]
 
-            # Run all sub-batches concurrently
+            # Run all sub-batches concurrently for dense
             results: dict[int, list] = {}
             embed_error = None
             with ThreadPoolExecutor(max_workers=EMBED_WORKERS) as executor:
@@ -152,6 +163,12 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
             all_embeddings = []
             for start_idx, _ in sub_batches:
                 all_embeddings.extend(results.get(start_idx, []))
+                
+            # Now compute sparse embeddings
+            yield {"event": "status", "data": f"Computing sparse embeddings for {total} chunks..."}
+            sparse_results = []
+            for start_idx, batch in sub_batches:
+                 sparse_results.extend(embedder.embed_sparse_batch(batch))
             
             if _is_cancelled(tenant_id):
                 pending_chunks.clear()
@@ -160,10 +177,17 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
             points_to_upsert = []
             for i, chunk in enumerate(pending_chunks):
                 if i < len(all_embeddings) and all_embeddings[i]:
+                    vecs = {"": all_embeddings[i]}
+                    if i < len(sparse_results) and sparse_results[i]:
+                        vecs["text-sparse"] = SparseVector(
+                            indices=sparse_results[i]["indices"],
+                            values=sparse_results[i]["values"]
+                        )
+                        
                     points_to_upsert.append(
                         PointStruct(
                             id=str(uuid.uuid4()),
-                            vector=all_embeddings[i],
+                            vector=vecs,
                             payload={
                                 "tenant_id": tenant_id,
                                 "repo_id": repo_id,
