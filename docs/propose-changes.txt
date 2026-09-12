@@ -6,3 +6,10 @@
 -- It can generate sources files like instruction, rules, skill for the repo to download
 -- Make sure there is pagination in the chat listing and message listing & the filteration should be at server side, Add search bar as well for chat findings
 -- User can upload file or image snapshot and ask questions from it
+
+-- NEW PROPOSED FEATURES:
+-- Interactive Architecture Dependency Graph (Visualizer): Render a 2D map of the codebase for visual navigation.
+-- Automated PR Review Mode: Analyze a Pull Request against the codebase to act as an AI reviewer.
+-- Code Sandbox Execution: Run the codebase in a secure browser sandbox to test AI fixes.
+-- "Explain this file" Annotations: Auto-generate summaries for files hovering in the frontend File Explorer.
+-- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.

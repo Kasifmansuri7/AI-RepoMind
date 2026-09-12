@@ -269,7 +269,33 @@ Starting with local path + public URL cloning covers most of the resume/demo val
 
 ---
 
-## 13. Next Steps
+## 13. Future Enhancements & Proposed Features (Implementation Priority)
+
+### 🟢 Phase 1: High Impact, Low/Medium Effort (Core Foundation)
+*These features fix immediate UX problems and improve the core RAG accuracy.*
+- **Advanced Hybrid Search**: Combine Vector Embeddings (semantic) with BM25 (keyword) for accurate and robust code search.
+- **Pre-Clone Repo Details**: Fetch repo metadata (branches, tags) via public APIs so users can select specific targets before cloning.
+- **Pagination & Server-Side Filtering**: Implement backend pagination, infinite scrolling, and full-text search for managing chat history efficiently.
+- **Context File Generation**: Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
+
+### 🟡 Phase 2: High Impact, Medium Effort (The Differentiators)
+*These features add a "Wow" factor and make the tool feel like a premium AI product.*
+- **Multi-Modal Uploads**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
+- **Local Directory Mounting & Cloud Integration**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
+- **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
+- **File & Function Annotations**: Generate automated, quick summaries for files or functions when hovering in the frontend.
+
+### 🔴 Phase 3: High Impact, High Effort (The Moonshots)
+*Complex, standalone features that require significant engineering but turn the app into an automated teammate.*
+- **Frontend File Explorer & Editor**: Embed a file tree and Monaco Editor in the frontend to allow users to make changes directly from the web interface.
+- **Interactive Architecture Graph**: Render a 2D map of the codebase dependencies for visual navigation (e.g., using React Flow).
+- **Automated PR Review Mode**: Analyze Pull Requests against the codebase and act as an AI reviewer for potential bugs.
+- **Code Sandbox Execution**: Run the codebase in a secure browser sandbox (like WebContainers) to test AI fixes before application.
+- **Self-Healing Tests**: Intercept failing test stack traces and suggest automatic fixes in the chat interface.
+
+---
+
+## 14. Next Steps
 
 - [ ] Pick a target repo to index first (your own project, or a well-known open-source repo)
 - [ ] Set up the backend skeleton (FastAPI + Postgres/pgvector or Qdrant via Docker)
