@@ -43,10 +43,10 @@ export function LoginScreen() {
         className="glass-card p-8 rounded-2xl w-full max-w-md"
       >
         <div className="flex items-center justify-center mb-8 gap-3">
-          <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
-            <Sparkles className="w-8 h-8 text-blue-400" />
+          <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+            <Sparkles className="w-8 h-8 text-indigo-400" />
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">AI-RepoMind</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">AI-RepoMind</h1>
         </div>
         
         <p className="text-gray-400 mb-8 text-center text-sm">
@@ -69,7 +69,7 @@ export function LoginScreen() {
             }
           }}
           disabled={loading}
-          className="w-full bg-white text-black hover:bg-gray-100 disabled:opacity-50 rounded-xl px-4 py-3 font-medium transition-colors shadow-lg shadow-white/5 flex items-center justify-center gap-3"
+          className="w-full bg-white text-black hover:bg-gray-100 disabled:opacity-50 rounded-xl px-4 py-3 font-medium transition-colors border border-white/10 flex items-center justify-center gap-3"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin text-black" /> : (
             <>

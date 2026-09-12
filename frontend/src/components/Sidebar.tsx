@@ -17,6 +17,7 @@ import {
 import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 import { DeleteChatModal } from "@/components/DeleteChatModal";
+import { Skeleton } from "@/components/Skeleton";
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const { 
@@ -111,7 +112,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
             <button 
               onClick={onOpenIngest} 
               title="Add Repository"
-              className="p-1 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition"
+              className="p-1 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -123,12 +124,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className={`w-full bg-white/[0.04] hover:bg-white/[0.07] border ${
-                  isDropdownOpen ? "border-blue-500/40 ring-2 ring-blue-500/20" : "border-white/10 hover:border-white/20"
-                } rounded-xl px-3.5 py-2.5 text-left transition-all duration-150 flex items-center justify-between group shadow-sm`}
+                className={`w-full bg-white/[0.02] hover:bg-white/[0.04] border ${
+                  isDropdownOpen ? "border-indigo-500/40" : "border-white/5 hover:border-white/10"
+                } rounded-xl px-3.5 py-2.5 text-left transition-colors flex items-center justify-between group`}
               >
                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                  <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 group-hover:scale-105 transition-transform shrink-0">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
                     <GitBranch className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col min-w-0">
@@ -304,7 +305,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                   <div 
                     key={s.id} 
                     onClick={() => fetchMessages(s.id)}
-                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition group ${
+                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors group ${
                       currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
                     }`}
                   >
@@ -340,8 +341,9 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                 <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
               )}
               {hasMoreSessions && (
-                <div ref={observerRef} className="py-2 flex justify-center">
-                  <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                <div ref={observerRef} className="py-2 flex flex-col gap-2">
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-lg opacity-70" />
                 </div>
               )}
           </div>

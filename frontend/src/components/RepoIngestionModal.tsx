@@ -182,8 +182,8 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
             </button>
             
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
-                <Server className="w-6 h-6 text-blue-400" />
+              <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                <Server className="w-6 h-6 text-indigo-400" />
               </div>
               <h2 className="text-xl font-bold">Add Repository</h2>
             </div>
@@ -198,9 +198,9 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                     onChange={(e) => setUrl(e.target.value)}
                     disabled={isIngesting}
                     placeholder="https://github.com/user/repo"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-colors"
                   />
-                  <GitBranch className="absolute left-3 top-3.5 w-5 h-5 text-gray-500" />
+                  <GitBranch className="absolute left-4 top-3.5 w-4 h-4 text-gray-500" />
                 </div>
               </div>
               
@@ -213,7 +213,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                     onChange={(e) => setToken(e.target.value)}
                     disabled={isIngesting}
                     placeholder="ghp_xxxxxxxxxxxx"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-colors"
                   />
                 </div>
               </div>
@@ -222,34 +222,35 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                 <div className="flex-1">
                   <label className="block text-sm text-gray-400 mb-2">Branch (Optional)</label>
                   <div className="relative">
-                    {branches.length > 0 ? (
-                      <select
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        disabled={isIngesting}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                      >
-                        {branches.map(b => (
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      disabled={isIngesting || branches.length === 0}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-colors disabled:text-gray-500 disabled:cursor-not-allowed appearance-none"
+                    >
+                      {branches.length > 0 ? (
+                        branches.map(b => (
                           <option key={b} value={b} className="bg-zinc-900 text-white">{b}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        disabled={isIngesting}
-                        placeholder="e.g. main or dev"
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                      />
-                    )}
+                        ))
+                      ) : (
+                        <option value="" disabled className="bg-zinc-900 text-gray-500">
+                          {isFetchingBranches ? "Fetching branches..." : "Fetch branches to select"}
+                        </option>
+                      )}
+                    </select>
+                    {/* Custom chevron for the select */}
+                    <div className="absolute right-4 top-4 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleFetchBranches}
                   disabled={!url.trim() || isFetchingBranches || isIngesting}
-                  className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors whitespace-nowrap"
+                  className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 disabled:opacity-50 disabled:hover:bg-indigo-500/10 rounded-xl px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap"
                 >
                   {isFetchingBranches ? "Fetching..." : "Fetch Branches"}
                 </button>
@@ -261,7 +262,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                     ? "bg-red-500/10 border border-red-500/20 text-red-400"
                     : status === "Ingestion complete!"
                     ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                    : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+                    : "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
                 }`}>
                   {isIngesting && !isCancelling && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
                   {isCancelling && <Ban className="w-4 h-4 animate-pulse shrink-0" />}
@@ -275,7 +276,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                     <button
                       type="button"
                       disabled={true}
-                      className="flex-1 bg-blue-600/50 text-white rounded-xl px-4 py-3 font-medium flex items-center justify-center gap-2 opacity-70 cursor-not-allowed"
+                      className="flex-1 bg-indigo-600/50 text-white rounded-xl px-4 py-3 font-medium flex items-center justify-center gap-2 opacity-70 cursor-not-allowed"
                     >
                       <Loader2 className="w-4 h-4 animate-spin" /> Ingesting...
                     </button>
@@ -292,7 +293,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                   <button
                     type="submit"
                     disabled={!url.trim()}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors"
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors"
                   >
                     Ingest Repository
                   </button>

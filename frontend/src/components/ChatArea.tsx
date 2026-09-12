@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
+import { Skeleton } from "./Skeleton";
+import { TypingIndicator } from "./TypingIndicator";
 
 export function ChatArea() {
   const { 
@@ -169,29 +171,33 @@ export function ChatArea() {
           )}
 
           {messages.length > 0 && hasMoreMessages && (
-            <div ref={topOfMessagesRef} className="py-4 flex justify-center">
-              <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+            <div ref={topOfMessagesRef} className="py-4 flex flex-col gap-4">
+              <div className="flex gap-4 p-4 w-full justify-start opacity-50">
+                <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+                <Skeleton className="h-16 w-[60%] rounded-xl" />
+              </div>
             </div>
           )}
 
           {messages.map((msg, idx) => (
             <motion.div
               key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex gap-4 p-4 w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className={`flex gap-4 p-4 w-full group ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-tr from-blue-500 to-purple-500">
-                  <Sparkles className="w-4 h-4 text-white" />
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-1">
+                  <Sparkles className="w-4 h-4" />
                 </div>
               )}
               <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
               {msg.role === "user" && (
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-gray-700">
-                  <Terminal className="w-4 h-4 text-white" />
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-gray-300 border border-white/10 mt-1">
+                  <Terminal className="w-4 h-4" />
                 </div>
               )}
             </motion.div>
@@ -200,13 +206,22 @@ export function ChatArea() {
           <AnimatePresence>
             {status && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex items-center gap-3 text-blue-400 p-4"
+                initial={{ opacity: 0, height: 0, y: 10 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                className="flex items-center gap-3 text-indigo-400 p-4"
               >
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm font-medium">{status}</span>
+                {status === "Thinking..." ? (
+                  <>
+                    <TypingIndicator />
+                    <span className="text-sm font-medium ml-2">{status}</span>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm font-medium">{status}</span>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -241,7 +256,7 @@ export function ChatArea() {
 
           <form 
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all"
+            className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-colors"
           >
             <input
               ref={inputRef}
@@ -249,13 +264,13 @@ export function ChatArea() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask your codebase anything..."
-              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-500"
+              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400"
               disabled={isLoading}
             />
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="p-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 rounded-xl transition text-white"
+              className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl transition-colors text-white"
             >
               <Send className="w-5 h-5" />
             </button>
