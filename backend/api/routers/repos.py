@@ -16,6 +16,7 @@ router = APIRouter()
 class IngestRequest(BaseModel):
     url: str
     token: Optional[str] = None
+    branch: Optional[str] = None
 
 @router.get("/repos")
 async def get_repos(request: Request, db = Depends(get_db)):
@@ -26,7 +27,16 @@ async def get_repos(request: Request, db = Depends(get_db)):
 @router.post("/repos/ingest")
 async def ingest_repo(request: Request, body: IngestRequest, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
-    return EventSourceResponse(async_ingest_repository_generator(body.url, tenant_id, db, token=body.token))
+    return EventSourceResponse(async_ingest_repository_generator(body.url, tenant_id, db, token=body.token, branch=body.branch))
+
+@router.post("/repos/branches")
+async def get_branches(body: IngestRequest):
+    try:
+        rm = RepoManager()
+        branches = rm.get_remote_branches(body.url, token=body.token)
+        return {"branches": branches}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/repos/ingest/cancel")
 async def cancel_ingest(request: Request):
