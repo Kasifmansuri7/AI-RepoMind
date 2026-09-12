@@ -13,3 +13,5 @@
 -- Code Sandbox Execution: Run the codebase in a secure browser sandbox to test AI fixes.
 -- "Explain this file" Annotations: Auto-generate summaries for files hovering in the frontend File Explorer.
 -- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.
+-- UI Revamp: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations to create a 'wow' factor.
+-- Branched Chats (Tree Structure): Allow users to fork a conversation from any past message to explore multiple different directions.
