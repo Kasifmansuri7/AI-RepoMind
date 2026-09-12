@@ -12,11 +12,13 @@ import {
   Check, 
   Trash2,
   FolderGit2,
-  Search
+  Search,
+  Wand2
 } from "lucide-react";
 import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 import { DeleteChatModal } from "@/components/DeleteChatModal";
+import { ContextRulesModal } from "@/components/ContextRulesModal";
 import { Skeleton } from "@/components/Skeleton";
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
@@ -46,6 +48,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const [repoToDelete, setRepoToDelete] = useState<Repo | null>(null);
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
   const [chatFilterRepo, setChatFilterRepo] = useState<string>("all");
+  const [selectedRepoForRules, setSelectedRepoForRules] = useState<Repo | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -185,6 +188,20 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                               {isSelected && (
                                 <Check className="w-3.5 h-3.5 text-blue-400" />
                               )}
+                              
+                              <button
+                                type="button"
+                                title={`Generate Context Rules for ${r.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsDropdownOpen(false);
+                                  setSelectedRepoForRules(r);
+                                }}
+                                className="p-1 rounded-md text-gray-400 hover:text-purple-400 hover:bg-purple-500/20 transition opacity-60 group-hover:opacity-100"
+                              >
+                                <Wand2 className="w-3.5 h-3.5" />
+                              </button>
+
                               <button
                                 type="button"
                                 title={`Delete ${r.name}`}
@@ -408,6 +425,14 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
         isOpen={!!chatToDelete}
         chat={chatToDelete}
         onClose={() => setChatToDelete(null)}
+      />
+
+      {/* Context Rules Modal */}
+      <ContextRulesModal
+        isOpen={selectedRepoForRules !== null}
+        onClose={() => setSelectedRepoForRules(null)}
+        repoId={selectedRepoForRules?.id || ""}
+        repoName={selectedRepoForRules?.name || ""}
       />
     </>
   );
