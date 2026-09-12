@@ -8,7 +8,11 @@ import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 
 export function ChatArea() {
-  const { session, repoName, messages, addMessage, sessions, currentSessionId, fetchSessions, setCurrentSessionId, updateLastMessage } = useChatStore();
+  const { 
+    session, repoName, messages, addMessage, sessions, 
+    currentSessionId, fetchSessions, setCurrentSessionId, 
+    updateLastMessage, fetchMessages, messagesPage, hasMoreMessages 
+  } = useChatStore();
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
@@ -16,11 +20,30 @@ export function ChatArea() {
   const [mode, setMode] = useState<"ask" | "plan">("ask");
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const topOfMessagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
-    endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, status]);
+    if (!isFetchingMore) {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, status, isFetchingMore]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        if (entries[0].isIntersecting && hasMoreMessages && currentSessionId && !isFetchingMore) {
+          setIsFetchingMore(true);
+          await fetchMessages(currentSessionId, messagesPage + 1);
+          setIsFetchingMore(false);
+        }
+      },
+      { threshold: 1.0 }
+    );
+    if (topOfMessagesRef.current) observer.observe(topOfMessagesRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreMessages, messagesPage, currentSessionId, isFetchingMore, fetchMessages]);
 
   const sendMessage = async (overrideMsg?: string) => {
     const msgText = overrideMsg || input;
@@ -143,6 +166,12 @@ export function ChatArea() {
                 ))}
               </div>
             </motion.div>
+          )}
+
+          {messages.length > 0 && hasMoreMessages && (
+            <div ref={topOfMessagesRef} className="py-4 flex justify-center">
+              <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+            </div>
           )}
 
           {messages.map((msg, idx) => (

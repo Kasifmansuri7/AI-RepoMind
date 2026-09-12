@@ -19,17 +19,24 @@ interface ChatState {
   sessions: ChatSession[];
   currentSessionId: string | null;
   
+  sessionsPage: number;
+  hasMoreSessions: boolean;
+  chatSearchQuery: string;
+  messagesPage: number;
+  hasMoreMessages: boolean;
+  
   initializeAuth: () => void;
   logout: () => Promise<void>;
   
   setRepoName: (name: string) => void;
   setCurrentSessionId: (id: string | null) => void;
+  setChatSearchQuery: (query: string) => void;
   addMessage: (msg: Message) => void;
   
   fetchRepos: () => Promise<void>;
   deleteRepo: (repoId: string) => Promise<boolean>;
-  fetchSessions: () => Promise<void>;
-  fetchMessages: (sessionId: string) => Promise<void>;
+  fetchSessions: (page?: number, repoFilter?: string) => Promise<void>;
+  fetchMessages: (sessionId: string, page?: number) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<boolean>;
   updateLastMessage: (content: string) => void;
 }
@@ -45,6 +52,11 @@ export const useChatStore = create<ChatState>()(
       repoName: "",
       repos: [],
       sessions: [],
+      sessionsPage: 1,
+      hasMoreSessions: false,
+      chatSearchQuery: "",
+      messagesPage: 1,
+      hasMoreMessages: false,
       currentSessionId: null,
       
       initializeAuth: () => {
@@ -79,6 +91,7 @@ export const useChatStore = create<ChatState>()(
 
       setRepoName: (name) => set({ repoName: name }),
       setCurrentSessionId: (id) => set({ currentSessionId: id }),
+      setChatSearchQuery: (query) => set({ chatSearchQuery: query }),
       addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
       updateLastMessage: (content) => set((state) => {
         const msgs = [...state.messages];
@@ -126,23 +139,37 @@ export const useChatStore = create<ChatState>()(
         }
       },
       
-      fetchSessions: async () => {
-        const { session } = get();
+      fetchSessions: async (page = 1, repoFilter = "all") => {
+        const { session, chatSearchQuery, tenantId } = get();
         if (!session) return;
         try {
-          const res = await apiClient.get('/api/chats');
-          set({ sessions: res.data });
+          const params = new URLSearchParams({ page: page.toString(), limit: "20" });
+          if (chatSearchQuery) params.append("search", chatSearchQuery);
+          if (repoFilter !== "all") params.append("repo_id", `${tenantId}_${repoFilter}`);
+          
+          const res = await apiClient.get(`/api/chats?${params.toString()}`);
+          set((state) => ({ 
+            sessions: page === 1 ? res.data.items : [...state.sessions, ...res.data.items],
+            sessionsPage: page,
+            hasMoreSessions: res.data.has_more
+          }));
         } catch (e) {
           console.error(e);
         }
       },
       
-      fetchMessages: async (sessionId: string) => {
+      fetchMessages: async (sessionId: string, page = 1) => {
         const { session } = get();
         if (!session) return;
         try {
-          const res = await apiClient.get(`/api/chats/${sessionId}`);
-          set({ messages: res.data, currentSessionId: sessionId });
+          const params = new URLSearchParams({ page: page.toString(), limit: "50" });
+          const res = await apiClient.get(`/api/chats/${sessionId}?${params.toString()}`);
+          set((state) => ({ 
+            messages: page === 1 ? res.data.items : [...res.data.items, ...state.messages], 
+            currentSessionId: sessionId,
+            messagesPage: page,
+            hasMoreMessages: res.data.has_more
+          }));
         } catch (e) {
           console.error(e);
         }

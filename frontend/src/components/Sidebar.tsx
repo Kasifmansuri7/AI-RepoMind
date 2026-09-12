@@ -11,7 +11,8 @@ import {
   ChevronDown, 
   Check, 
   Trash2,
-  FolderGit2
+  FolderGit2,
+  Search
 } from "lucide-react";
 import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
@@ -30,7 +31,11 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
     fetchMessages, 
     deleteSession,
     currentSessionId,
-    logout 
+    logout,
+    chatSearchQuery,
+    setChatSearchQuery,
+    sessionsPage,
+    hasMoreSessions
   } = useChatStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -40,11 +45,37 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const [chatFilterRepo, setChatFilterRepo] = useState<string>("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<HTMLDivElement>(null);
+  
+  const [localSearch, setLocalSearch] = useState(chatSearchQuery);
 
   useEffect(() => {
     fetchRepos();
-    fetchSessions();
-  }, [fetchRepos, fetchSessions]);
+  }, [fetchRepos]);
+
+  useEffect(() => {
+    fetchSessions(1, chatFilterRepo);
+  }, [fetchSessions, chatSearchQuery, chatFilterRepo]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setChatSearchQuery(localSearch);
+    }, 400);
+    return () => clearTimeout(timeoutId);
+  }, [localSearch, setChatSearchQuery]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreSessions) {
+          fetchSessions(sessionsPage + 1, chatFilterRepo);
+        }
+      },
+      { threshold: 1.0 }
+    );
+    if (observerRef.current) observer.observe(observerRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreSessions, sessionsPage, fetchSessions, chatFilterRepo]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -255,14 +286,21 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               )}
             </AnimatePresence>
           </div>
+          
+          <div className="relative mb-3">
+            <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+            />
+          </div>
+
           <div className="space-y-2">
-            {(() => {
-              const displaySessions = chatFilterRepo !== "all"
-                ? sessions.filter(s => s.repo_id.endsWith(`_${chatFilterRepo}`))
-                : sessions;
-              
-              return displaySessions.length > 0 ? (
-                displaySessions.map((s) => (
+            {sessions.length > 0 ? (
+              sessions.map((s) => (
                   <div 
                     key={s.id} 
                     onClick={() => fetchMessages(s.id)}
@@ -300,8 +338,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                 ))
               ) : (
                 <p className="text-xs text-gray-600 text-center mt-4">No recent chats</p>
-              );
-            })()}
+              )}
+              {hasMoreSessions && (
+                <div ref={observerRef} className="py-2 flex justify-center">
+                  <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                </div>
+              )}
           </div>
         </div>
 
