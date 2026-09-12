@@ -9,6 +9,7 @@ import { useChatStore } from "@/store/chatStore";
 import { Skeleton } from "./Skeleton";
 import { TypingIndicator } from "./TypingIndicator";
 import { supabase } from "@/utils/supabase/client";
+import { CodeBlock } from "@/components/CodeBlock";
 
 const SUGGESTION_POOL = [
   "Explain the architecture",
@@ -288,7 +289,7 @@ export function ChatArea() {
                   <Sparkles className="w-4 h-4" />
                 </div>
               )}
-              <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10 relative">
+              <div className="prose prose-invert max-w-[85%] relative">
                 <ReactMarkdown
                   components={{
                     img: ({ node, ...props }) => (
@@ -297,7 +298,17 @@ export function ChatArea() {
                         className="max-w-[150px] sm:max-w-[250px] h-auto rounded-xl border border-white/10 cursor-zoom-in hover:opacity-80 transition-opacity shadow-lg my-2 inline-block"
                         onClick={() => setSelectedImage(typeof props.src === 'string' ? props.src : null)}
                       />
-                    )
+                    ),
+                    code: ({node, className, children, ...props}) => {
+                      const match = /language-(\w+)/.exec(className || '')
+                      return match ? (
+                        <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
+                      ) : (
+                        <code className="bg-black/40 rounded px-1.5 py-0.5 text-pink-300 font-mono text-[13px]" {...props}>
+                          {children}
+                        </code>
+                      )
+                    }
                   }}
                 >
                   {msg.content}
