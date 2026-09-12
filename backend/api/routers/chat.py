@@ -10,14 +10,16 @@ from backend.agents.graph import agent_graph
 
 router = APIRouter()
 
+from typing import Optional
+
 class ChatRequest(BaseModel):
     message: str
     repo_name: str
-    session_id: str = None
+    session_id: Optional[str] = None
     mode: str = "ask"
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 def generate_chat_title(message: str) -> str:
     try:
@@ -59,10 +61,14 @@ async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
     
     # 3. Stream LangGraph execution
     async def event_generator():
+        history_msgs = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+        formatted_history = "\n".join([f"{m.role}: {m.content}" for m in history_msgs[:-1]])
+        
         initial_state = {
             "task": body.message,
             "tenant_id": tenant_id,
             "repo_name": body.repo_name,
+            "chat_history": formatted_history,
             "revision_number": 0,
             "max_revisions": 3
         }
@@ -74,10 +80,19 @@ async def chat(request: Request, body: ChatRequest, db = Depends(get_db)):
                 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
                 messages = [
                     SystemMessage(content=f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. Provide a fast, concise answer. When greeting the user or responding to general queries, ALWAYS explicitly mention the repository name you are assisting with (e.g., 'Hello! I'm ready to help you with the {body.repo_name} repository.')."),
-                    HumanMessage(content=body.message)
                 ]
-                response = await llm.ainvoke(messages)
-                final_answer = response.content
+                for msg in history_msgs[:-1]:
+                    if msg.role == "user":
+                        messages.append(HumanMessage(content=msg.content))
+                    elif msg.role == "assistant":
+                        messages.append(AIMessage(content=msg.content))
+                
+                messages.append(HumanMessage(content=body.message))
+                
+                async for chunk in llm.astream(messages):
+                    if chunk.content:
+                        final_answer += chunk.content
+                        yield {"event": "token", "data": json.dumps({"token": chunk.content})}
             else:
                 # We use astream to stream the state updates as nodes finish
                 async for chunk in agent_graph.astream(initial_state):

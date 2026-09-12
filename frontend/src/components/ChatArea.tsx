@@ -8,7 +8,7 @@ import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
 
 export function ChatArea() {
-  const { session, repoName, messages, addMessage, sessions, currentSessionId, fetchSessions, setCurrentSessionId } = useChatStore();
+  const { session, repoName, messages, addMessage, sessions, currentSessionId, fetchSessions, setCurrentSessionId, updateLastMessage } = useChatStore();
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
@@ -16,6 +16,7 @@ export function ChatArea() {
   const [mode, setMode] = useState<"ask" | "plan">("ask");
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,24 +49,33 @@ export function ChatArea() {
       const reader = stream.getReader();
       const decoder = new TextDecoder("utf-8");
       let finalContent = "";
+      addMessage({ role: "assistant", content: "" });
 
+      let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const dataStr = line.replace("data: ", "").trim();
             if (!dataStr) continue;
             
-            if (line.includes('"content"')) {
+            if (line.includes('"token"')) {
+              try {
+                const parsed = JSON.parse(dataStr);
+                finalContent += parsed.token;
+                updateLastMessage(finalContent);
+              } catch (e) {}
+            } else if (line.includes('"content"')) {
               try {
                 const parsed = JSON.parse(dataStr);
                 finalContent = parsed.content;
-                addMessage({ role: "assistant", content: finalContent });
+                updateLastMessage(finalContent);
                 if (parsed.session_id && !currentSessionId) {
                   setCurrentSessionId(parsed.session_id);
                   fetchSessions();
@@ -86,6 +96,9 @@ export function ChatArea() {
       setStatus("");
     } finally {
       setIsLoading(false);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
     }
   };
 
@@ -199,6 +212,7 @@ export function ChatArea() {
             className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all"
           >
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}

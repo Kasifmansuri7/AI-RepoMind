@@ -31,6 +31,7 @@ interface ChatState {
   fetchSessions: () => Promise<void>;
   fetchMessages: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<boolean>;
+  updateLastMessage: (content: string) => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -79,6 +80,13 @@ export const useChatStore = create<ChatState>()(
       setRepoName: (name) => set({ repoName: name }),
       setCurrentSessionId: (id) => set({ currentSessionId: id }),
       addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
+      updateLastMessage: (content) => set((state) => {
+        const msgs = [...state.messages];
+        if (msgs.length > 0) {
+          msgs[msgs.length - 1].content = content;
+        }
+        return { messages: msgs };
+      }),
       
       fetchRepos: async () => {
         const { session } = get();
