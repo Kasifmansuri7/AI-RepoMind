@@ -27,14 +27,34 @@ class RepoManager:
             raise ValueError(f"Local path does not exist or is not a directory: {path}")
         return repo_path
 
-    def clone_remote_repo(self, url: str, token: str = None, tenant_id: str = None) -> Path:
-        """Clones a remote repository into the designated directory. Supports tenant isolation and auth token."""
-        # Normalize URL: remove trailing slashes and ensure it ends with .git
+    def _normalize_url(self, url: str, token: str = None) -> tuple[str, str]:
+        """Validates and normalizes the URL. Returns (repo_name, clone_url)."""
         clean_url = url.strip().rstrip("/")
+        
+        if not clean_url:
+            raise ValueError("Invalid URL: Cannot be empty")
+            
+        if not clean_url.startswith(("http://", "https://", "git@")):
+            raise ValueError("Invalid URL: Must start with http://, https://, or git@")
+            
         if not clean_url.endswith(".git"):
             clean_url += ".git"
             
         repo_name = clean_url.split("/")[-1].replace(".git", "")
+        
+        clone_url = clean_url
+        if token:
+            if clone_url.startswith("https://"):
+                clone_url = f"https://{token}@{clone_url[8:]}"
+            elif clone_url.startswith("http://"):
+                clone_url = f"http://{token}@{clone_url[7:]}"
+                
+        return repo_name, clone_url
+
+    def clone_remote_repo(self, url: str, token: str = None, tenant_id: str = None, branch: str = None) -> Path:
+        """Clones a remote repository into the designated directory. Supports tenant isolation, auth token, and specific branch."""
+        repo_name, clone_url = self._normalize_url(url, token)
+        
         if tenant_id:
             dest_dir = self.base_dir / tenant_id / repo_name
         else:
@@ -46,24 +66,47 @@ class RepoManager:
             
         dest_dir.parent.mkdir(parents=True, exist_ok=True)
         print(f"Cloning {url} into {dest_dir}...")
-        
-        clone_url = clean_url
-        if token:
-            if clone_url.startswith("https://"):
-                clone_url = f"https://{token}@{clone_url[8:]}"
-            elif clone_url.startswith("http://"):
-                clone_url = f"http://{token}@{clone_url[7:]}"
 
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
         
+        cmd = ["git", "clone", "--depth", "1"]
+        if branch:
+            cmd.extend(["-b", branch])
+        cmd.extend([clone_url, str(dest_dir)])
+        
         subprocess.run(
-            ["git", "clone", "--depth", "1", clone_url, str(dest_dir)], 
+            cmd, 
             check=True,
             capture_output=True,
             env=env
         )
         return dest_dir
+
+    def get_remote_branches(self, url: str, token: str = None) -> list[str]:
+        """Fetches a list of available remote branches using git ls-remote."""
+        _, clone_url = self._normalize_url(url, token)
+
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        
+        try:
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", clone_url], 
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env
+            )
+            branches = []
+            for line in result.stdout.strip().split("\n"):
+                if line:
+                    parts = line.split("refs/heads/")
+                    if len(parts) > 1:
+                        branches.append(parts[-1].strip())
+            return branches
+        except subprocess.CalledProcessError as e:
+            raise ValueError(f"Failed to fetch branches: {e.stderr}")
 
     def cleanup_repo(self, repo_path: Path):
         """Safely removes the repository directory if it resides inside base_dir."""

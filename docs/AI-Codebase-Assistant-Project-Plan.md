@@ -300,9 +300,10 @@ Starting with local path + public URL cloning covers most of the resume/demo val
 _These features fix immediate UX problems and improve the core RAG accuracy._
 
 - ✅ **Advanced Hybrid Search (Completed)**: Combine Vector Embeddings (semantic) with BM25 (keyword) for accurate and robust code search.
-- **Pre-Clone Repo Details**: Fetch repo metadata (branches, tags) via public APIs so users can select specific targets before cloning.
+- ✅ **Pre-Clone Repo Details (Completed)**: Fetch repo metadata (branches) securely via `git ls-remote` so users can select specific targets before cloning.
 - ✅ **Pagination & Server-Side Filtering (Completed)**: Implement backend pagination, infinite scrolling, and full-text search for managing chat history efficiently.
 - **Context File Generation**: Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
+- **Chat Auto-Summarization**: Automatically summarize long chat histories to save LLM context window tokens while retaining the core context of very long conversations.
 
 ### 🟡 Phase 2: High Impact, Medium Effort (The Differentiators)
 

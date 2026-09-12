@@ -12,7 +12,10 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [status, setStatus] = useState("");
   const [isIngesting, setIsIngesting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const { session, fetchRepos } = useChatStore();
+  const [branches, setBranches] = useState<string[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [isFetchingBranches, setIsFetchingBranches] = useState(false);
+  const { session, fetchRepos, setRepoName } = useChatStore();
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
@@ -40,6 +43,32 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
     setIsCancelling(false);
   };
 
+  const handleFetchBranches = async () => {
+    if (!url.trim()) return;
+    setIsFetchingBranches(true);
+    setStatus("Fetching branches...");
+    try {
+      const res = await apiClient.post("/api/repos/branches", {
+        url,
+        token: token.trim() || undefined
+      });
+      if (res.data.branches && res.data.branches.length > 0) {
+        setBranches(res.data.branches);
+        setSelectedBranch(res.data.branches.includes("main") ? "main" : res.data.branches[0]);
+        setStatus(`Found ${res.data.branches.length} branches.`);
+      } else {
+        setStatus("No branches found or local repo.");
+        setBranches([]);
+      }
+    } catch (e: any) {
+      console.error(e);
+      const errMsg = e.response?.data?.detail || "Failed to fetch branches. Ensure it's a valid remote Git URL.";
+      setStatus(errMsg);
+      setBranches([]);
+    }
+    setIsFetchingBranches(false);
+  };
+
   const handleIngest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
@@ -53,7 +82,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
 
     try {
       const res = await apiClient.post(`/api/repos/ingest`, 
-        { url, token: token.trim() || undefined },
+        { url, token: token.trim() || undefined, branch: selectedBranch || undefined },
         {
           responseType: 'stream',
           adapter: 'fetch',
@@ -109,11 +138,14 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
           if (eventType === "success") {
              setStatus("Ingestion complete!");
              await fetchRepos();
+             setRepoName(dataStr); // Automatically select the new repo!
              setTimeout(() => {
                  onClose();
                  setStatus("");
                  setUrl("");
                  setToken("");
+                 setBranches([]);
+                 setSelectedBranch("");
                  setIsIngesting(false);
              }, 1000);
              return;
@@ -184,6 +216,43 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                   />
                 </div>
+              </div>
+              
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-400 mb-2">Branch (Optional)</label>
+                  <div className="relative">
+                    {branches.length > 0 ? (
+                      <select
+                        value={selectedBranch}
+                        onChange={(e) => setSelectedBranch(e.target.value)}
+                        disabled={isIngesting}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                      >
+                        {branches.map(b => (
+                          <option key={b} value={b} className="bg-zinc-900 text-white">{b}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={selectedBranch}
+                        onChange={(e) => setSelectedBranch(e.target.value)}
+                        disabled={isIngesting}
+                        placeholder="e.g. main or dev"
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                      />
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFetchBranches}
+                  disabled={!url.trim() || isFetchingBranches || isIngesting}
+                  className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-xl px-4 py-3 font-medium transition-colors whitespace-nowrap"
+                >
+                  {isFetchingBranches ? "Fetching..." : "Fetch Branches"}
+                </button>
               </div>
               
               {status && (

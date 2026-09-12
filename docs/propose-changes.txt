@@ -15,3 +15,5 @@
 -- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.
 -- UI Revamp: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations to create a 'wow' factor.
 -- Branched Chats (Tree Structure): Allow users to fork a conversation from any past message to explore multiple different directions.
+-- Chat Auto-Summarization: Automatically summarize long chat histories to save LLM tokens and maintain context for very long conversations.
+-- The LLM and chat should reponde to code base stuff. not general questions.

@@ -32,7 +32,7 @@ def _clear_cancellation(tenant_id: str):
     _active_ingestions.pop(tenant_id, None)
 
 
-def ingest_repository_generator(source: str, tenant_id: str, db, token: str = None):
+def ingest_repository_generator(source: str, tenant_id: str, db, token: str = None, branch: str = None):
     """
     Core business logic for ingesting a repository.
     Yields events so it can be consumed by both CLI and FastAPI SSE streams.
@@ -49,9 +49,9 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
     was_cancelled = False
 
     try:
-        yield {"event": "status", "data": "Cloning repository..."}
+        yield {"event": "status", "data": "Downloading repository files..."}
         if is_remote:
-            repo_path = repo_manager.clone_remote_repo(source, token=token, tenant_id=tenant_id)
+            repo_path = repo_manager.clone_remote_repo(source, token=token, tenant_id=tenant_id, branch=branch)
         else:
             repo_path = repo_manager.load_local_repo(source)
             
@@ -77,7 +77,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
             db.commit()
             
         print(f"Scanning files in {repo_name}...")
-        yield {"event": "status", "data": f"Scanning files in {repo_name}..."}
+        yield {"event": "status", "data": f"Reading {repo_name} files..."}
         files = repo_manager.get_files(repo_path, extensions=SUPPORTED_EXTENSIONS)
         
         if len(files) == 0:
@@ -88,7 +88,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
             return
             
         print(f"Found {len(files)} files. Initializing models...")
-        yield {"event": "status", "data": f"Found {len(files)} files. Initializing models..."}
+        yield {"event": "status", "data": f"Found {len(files)} files. Preparing AI models..."}
         chunker = CodeChunker()
         embedder = Embedder()
         
@@ -127,7 +127,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
                 pending_chunks.clear()
                 return
 
-            yield {"event": "status", "data": f"Embedding {total} chunks in parallel..."}
+            yield {"event": "status", "data": f"Analyzing {total} code snippets..."}
 
             # Build sub-batches
             sub_batches = [
@@ -165,7 +165,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
                 all_embeddings.extend(results.get(start_idx, []))
                 
             # Now compute sparse embeddings
-            yield {"event": "status", "data": f"Computing sparse embeddings for {total} chunks..."}
+            yield {"event": "status", "data": f"Extracting keywords from {total} snippets..."}
             sparse_results = []
             for start_idx, batch in sub_batches:
                  sparse_results.extend(embedder.embed_sparse_batch(batch))
@@ -200,7 +200,7 @@ def ingest_repository_generator(source: str, tenant_id: str, db, token: str = No
                     )
             
             if points_to_upsert:
-                yield {"event": "status", "data": f"Upserting {len(points_to_upsert)} chunks into Qdrant..."}
+                yield {"event": "status", "data": f"Saving {len(points_to_upsert)} snippets to database..."}
                 q_client.upsert(collection_name=COLLECTION_NAME, points=points_to_upsert)
             
             pending_chunks.clear()
@@ -296,7 +296,7 @@ def _cleanup_partial_ingestion(tenant_id, repo_id, repo_name, repo_path, db, is_
             print(f"[Cancel] Failed to clean files: {e}")
 
 
-async def async_ingest_repository_generator(source: str, tenant_id: str, db, token: str = None):
+async def async_ingest_repository_generator(source: str, tenant_id: str, db, token: str = None, branch: str = None):
     """Async wrapper for FastAPI EventSourceResponse"""
-    for event in ingest_repository_generator(source, tenant_id, db, token=token):
+    for event in ingest_repository_generator(source, tenant_id, db, token=token, branch=branch):
         yield event
