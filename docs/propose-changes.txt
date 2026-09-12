@@ -6,6 +6,7 @@
 -- It can generate sources files like instruction, rules, skill for the repo to download
 -- Make sure there is pagination in the chat listing and message listing & the filteration should be at server side, Add search bar as well for chat findings
 -- User can upload file or image snapshot and ask questions from it
+-- If composer mode will give new code then how it will be useful to the user?
 
 -- NEW PROPOSED FEATURES:
 -- Interactive Architecture Dependency Graph (Visualizer): Render a 2D map of the codebase for visual navigation.
@@ -13,7 +14,3 @@
 -- Code Sandbox Execution: Run the codebase in a secure browser sandbox to test AI fixes.
 -- "Explain this file" Annotations: Auto-generate summaries for files hovering in the frontend File Explorer.
 -- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.
--- UI Revamp: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations to create a 'wow' factor.
--- Branched Chats (Tree Structure): Allow users to fork a conversation from any past message to explore multiple different directions.
--- Chat Auto-Summarization: Automatically summarize long chat histories to save LLM tokens and maintain context for very long conversations.
--- The LLM and chat should reponde to code base stuff. not general questions.
