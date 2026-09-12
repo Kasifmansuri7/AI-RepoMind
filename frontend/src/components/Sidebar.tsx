@@ -272,10 +272,15 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                   >
                     <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-2">
                       <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${currentSessionId === s.id ? "text-blue-400" : "text-gray-500 group-hover:text-blue-400"}`} />
-                      <div className="flex flex-col overflow-hidden min-w-0">
-                        <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
-                          {s.title || `Chat (${s.repo_id.split('_').slice(1).join('_') || s.repo_id})`}
-                        </span>
+                      <div className="flex flex-col overflow-hidden min-w-0 gap-0.5">
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <span className={`text-sm truncate transition-colors ${currentSessionId === s.id ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
+                            {s.title || 'New Chat'}
+                          </span>
+                          <span className="px-1 py-0.5 rounded text-[9px] font-medium bg-white/5 text-gray-400 border border-white/10 shrink-0 truncate max-w-[80px]">
+                            {s.repo_id.split('_').slice(1).join('_') || s.repo_id}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>

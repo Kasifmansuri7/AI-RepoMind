@@ -150,18 +150,21 @@ export function ChatArea() {
               key={idx}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex gap-4 ${msg.role === "assistant" ? "bg-white/[0.02] p-6 rounded-2xl border border-white/5" : "p-4"}`}
+              className={`flex gap-4 p-4 w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                msg.role === "assistant" 
-                  ? "bg-gradient-to-tr from-blue-500 to-purple-500" 
-                  : "bg-gray-700"
-              }`}>
-                {msg.role === "assistant" ? <Sparkles className="w-4 h-4 text-white" /> : <Terminal className="w-4 h-4 text-white" />}
-              </div>
-              <div className="flex-1 prose prose-invert max-w-none prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
+              {msg.role === "assistant" && (
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-tr from-blue-500 to-purple-500">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+              )}
+              <div className="prose prose-invert max-w-[85%] prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
+              {msg.role === "user" && (
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-gray-700">
+                  <Terminal className="w-4 h-4 text-white" />
+                </div>
+              )}
             </motion.div>
           ))}
 
