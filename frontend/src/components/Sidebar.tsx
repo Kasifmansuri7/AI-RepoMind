@@ -20,6 +20,9 @@ import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 import { DeleteChatModal } from "@/components/DeleteChatModal";
 import { ContextRulesModal } from "@/components/ContextRulesModal";
 import { Skeleton } from "@/components/Skeleton";
+import { timeAgo } from "@/utils/time";
+
+
 
 export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const { 
@@ -364,7 +367,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
                             {s.repo_id.split('_').slice(1).join('_') || s.repo_id}
                           </span>
                         </div>
-                        <span className="text-[10px] text-gray-600 truncate">{new Date(s.created_at).toLocaleDateString()}</span>
+                        <span className="text-[10px] text-gray-600 truncate">{timeAgo(s.created_at)}</span>
                       </div>
                     </div>
                     

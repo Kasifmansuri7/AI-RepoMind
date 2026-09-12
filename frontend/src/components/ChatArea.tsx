@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X, GitBranch } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X, GitBranch, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -9,6 +9,21 @@ import { useChatStore } from "@/store/chatStore";
 import { Skeleton } from "./Skeleton";
 import { TypingIndicator } from "./TypingIndicator";
 import { supabase } from "@/utils/supabase/client";
+
+const SUGGESTION_POOL = [
+  "Explain the architecture",
+  "How do I get started with this repo?",
+  "Find potential bugs or edge cases",
+  "Suggest areas for refactoring",
+  "Where is the main entry point?",
+  "Identify security vulnerabilities",
+  "Write a detailed README",
+  "Explain the state management flow",
+  "Are there any hardcoded secrets?",
+  "Suggest performance optimizations",
+  "Explain the database schema",
+  "Find unused variables or dead code",
+];
 
 export function ChatArea() {
   const { 
@@ -21,11 +36,21 @@ export function ChatArea() {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<"ask" | "plan">("ask");
+  const [mode, setMode] = useState<"auto" | "ask" | "plan">("auto");
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<{name: string, content: string}[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+
+  const refreshSuggestions = () => {
+    const shuffled = [...SUGGESTION_POOL].sort(() => 0.5 - Math.random());
+    setCurrentSuggestions(shuffled.slice(0, 4));
+  };
+
+  useEffect(() => {
+    refreshSuggestions();
+  }, []);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -38,6 +63,11 @@ export function ChatArea() {
       endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, status, isFetchingMore]);
+
+  // Reset to auto mode when switching sessions or starting a new chat
+  useEffect(() => {
+    setMode("auto");
+  }, [currentSessionId]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -117,6 +147,11 @@ export function ChatArea() {
               } catch {
                 // Ignore parse errors for partial chunks
               }
+            } else if (line.includes('"mode"')) {
+              try {
+                const parsed = JSON.parse(dataStr);
+                setMode(parsed.mode);
+              } catch {}
             } else if (line.includes('"content"')) {
               try {
                 const parsed = JSON.parse(dataStr);
@@ -200,13 +235,8 @@ export function ChatArea() {
                 </p>
               </div>
               
-              <div className="w-full flex flex-wrap justify-center gap-3">
-                {[
-                  "Explain the architecture",
-                  "Find bugs in chunker.py",
-                  "Write a new feature",
-                  "Refactor database layer"
-                ].map((quickMsg, i) => (
+              <div className="w-full flex flex-wrap justify-center items-center gap-3">
+                {currentSuggestions.map((quickMsg, i) => (
                   <motion.button
                     key={quickMsg}
                     initial={{ opacity: 0, y: 10 }}
@@ -219,6 +249,19 @@ export function ChatArea() {
                     <span>{quickMsg}</span>
                   </motion.button>
                 ))}
+                
+                {currentSuggestions.length > 0 && (
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5, duration: 0.4 }}
+                    onClick={refreshSuggestions}
+                    title="Show more suggestions"
+                    className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-gray-400 hover:text-white flex items-center justify-center shadow-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </motion.button>
+                )}
               </div>
             </motion.div>
           )}
@@ -308,23 +351,34 @@ export function ChatArea() {
         <div className="max-w-4xl mx-auto flex flex-col gap-3">
           
           <div className="flex justify-center">
-            <div className="bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10 flex items-center gap-1">
-              <button
-                onClick={() => setMode("ask")}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  mode === "ask" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-gray-400 hover:text-gray-200 border border-transparent"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" /> Ask
-              </button>
-              <button
-                onClick={() => setMode("plan")}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  mode === "plan" ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "text-gray-400 hover:text-gray-200 border border-transparent"
-                }`}
-              >
-                <Brain className="w-4 h-4" /> Composer
-              </button>
+            <div className="bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10 flex items-center gap-1 relative">
+              {[
+                { id: "auto", label: "Auto", icon: Sparkles, color: "text-indigo-400", bg: "bg-indigo-500/20", border: "border-indigo-500/30" },
+                { id: "ask", label: "Ask", icon: MessageSquare, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
+                { id: "plan", label: "Composer", icon: Brain, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30" }
+              ].map((m) => {
+                const Icon = m.icon;
+                const isActive = mode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setMode(m.id as "auto" | "ask" | "plan")}
+                    className={`relative flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      isActive ? m.color : "text-gray-400 hover:text-gray-200"
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-mode-pill"
+                        className={`absolute inset-0 rounded-full border ${m.bg} ${m.border}`}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <Icon className="w-4 h-4 relative z-10" />
+                    <span className="relative z-10">{m.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -445,7 +499,9 @@ export function ChatArea() {
             </button>
           </form>
           <p className="text-center text-xs text-gray-500 mt-1">
-            {mode === "ask" 
+            {mode === "auto" 
+              ? "Auto mode intelligently routes your question to Ask or Composer mode."
+              : mode === "ask" 
               ? "Ask mode provides fast answers using lightweight LLM chat." 
               : "Composer mode autonomously reason, search, and generate code."}
           </p>

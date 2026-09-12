@@ -20,7 +20,7 @@ class ChatRequest(BaseModel):
     message: str
     repo_name: str
     session_id: Optional[str] = None
-    mode: str = "ask"
+    mode: str = "auto"
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -36,6 +36,22 @@ def generate_chat_title(message: str) -> str:
         return response.content.strip()
     except Exception:
         return message[:30] + "..."
+
+async def determine_chat_mode(message: str) -> str:
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        messages = [
+            SystemMessage(content="You are an intent classifier for a coding assistant. Return ONLY the word 'ask' or 'plan' based on the user's message. Reply 'ask' for simple questions, explanations, asking for how things work, or finding bugs. Reply 'plan' for complex tasks requiring writing new code, refactoring, modifying files, creating features, or deep architectural analysis. Reply 'ask' if you are unsure."),
+            HumanMessage(content=message)
+        ]
+        response = await llm.ainvoke(messages)
+        mode = response.content.strip().lower()
+        if mode in ["ask", "plan"]:
+            return mode
+        return "ask"
+    except Exception as e:
+        print(f"Failed to classify mode: {e}")
+        return "ask"
 
 def ensure_tenant(db, tenant_id: str):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -229,7 +245,13 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             
             result_ref = {"final_answer": ""}
             
-            if body.mode == "ask":
+            if body.mode == "auto":
+                actual_mode = await determine_chat_mode(body.message)
+                yield {"event": "mode_switch", "data": json.dumps({"mode": actual_mode})}
+            else:
+                actual_mode = body.mode
+            
+            if actual_mode == "ask":
                 async for event in stream_ask_mode(body, tenant_id, recent_msgs, summary_text, result_ref):
                     yield event
             else:
