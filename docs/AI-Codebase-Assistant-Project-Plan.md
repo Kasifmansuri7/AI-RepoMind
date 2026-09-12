@@ -303,13 +303,13 @@ _These features fix immediate UX problems and improve the core RAG accuracy._
 - ✅ **Pre-Clone Repo Details (Completed)**: Fetch repo metadata (branches) securely via `git ls-remote` so users can select specific targets before cloning.
 - ✅ **Pagination & Server-Side Filtering (Completed)**: Implement backend pagination, infinite scrolling, and full-text search for managing chat history efficiently.
 - **Context File Generation**: Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
-- **Chat Auto-Summarization**: Automatically summarize long chat histories to save LLM context window tokens while retaining the core context of very long conversations.
+- ✅ **Chat Auto-Summarization (Completed)**: Automatically summarize long chat histories to save LLM context window tokens while retaining the core context of very long conversations.
 
 ### 🟡 Phase 2: High Impact, Medium Effort (The Differentiators)
 
 _These features add a "Wow" factor and make the tool feel like a premium AI product._
 
-- **UI Revamp**: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
+- ✅ **UI Revamp (Completed)**: Modernized the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
 - **Multi-Modal Uploads**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
 - **Local Directory Mounting & Cloud Integration**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
 - **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
