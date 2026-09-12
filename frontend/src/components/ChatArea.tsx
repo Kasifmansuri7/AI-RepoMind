@@ -23,6 +23,7 @@ export function ChatArea() {
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<"ask" | "plan">("ask");
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<{name: string, content: string}[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
@@ -55,16 +56,22 @@ export function ChatArea() {
 
   const sendMessage = async (overrideMsg?: string) => {
     let msgText = overrideMsg || input;
-    if (!msgText.trim() && attachedImages.length === 0) return;
+    if (!msgText.trim() && attachedImages.length === 0 && attachedFiles.length === 0) return;
 
     if (attachedImages.length > 0) {
       const markdownImages = attachedImages.map(url => `![Attached Image](${url})`).join("\n\n");
       msgText = msgText ? `${msgText}\n\n${markdownImages}` : markdownImages;
     }
 
+    if (attachedFiles.length > 0) {
+      const markdownFiles = attachedFiles.map(f => `**File: \`${f.name}\`**\n\`\`\`\n${f.content}\n\`\`\``).join("\n\n");
+      msgText = msgText ? `${msgText}\n\n${markdownFiles}` : markdownFiles;
+    }
+
     addMessage({ role: "user", content: msgText });
     setInput("");
     setAttachedImages([]);
+    setAttachedFiles([]);
     setIsLoading(true);
     setStatus("Thinking...");
 
@@ -312,13 +319,25 @@ export function ChatArea() {
             </div>
           </div>
 
-          {attachedImages.length > 0 && (
+          {(attachedImages.length > 0 || attachedFiles.length > 0) && (
             <div className="flex flex-wrap gap-2 mb-2 p-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
               {attachedImages.map((url, idx) => (
-                <div key={idx} className="relative group">
+                <div key={`img-${idx}`} className="relative group">
                   <img src={url} alt="Attached preview" className="h-16 w-16 object-cover rounded-lg border border-white/20" />
                   <button
                     onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.map((f, idx) => (
+                <div key={`file-${idx}`} className="relative group flex items-center gap-2 bg-white/5 border border-white/10 p-2 rounded-lg pr-4">
+                  <FileCode2 className="w-8 h-8 text-indigo-400" />
+                  <span className="text-xs text-gray-300 max-w-[100px] truncate">{f.name}</span>
+                  <button
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
                     className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-3 h-3" />
@@ -344,31 +363,56 @@ export function ChatArea() {
             
             <input 
               type="file" 
-              accept="image/*" 
+              accept="image/*,text/*,application/json,.py,.tsx,.ts,.jsx,.js,.md,.log,.csv" 
               className="hidden" 
               ref={fileInputRef}
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                setIsUploading(true);
-                try {
-                  const filename = `${Date.now()}_${file.name}`;
-                  const { data, error } = await supabase.storage
-                    .from('chat-attachments')
-                    .upload(filename, file);
-                  
-                  if (error) throw error;
-                  
-                  const { data: { publicUrl } } = supabase.storage
-                    .from('chat-attachments')
-                    .getPublicUrl(filename);
+                
+                // Explicitly reject video and audio
+                if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+                  alert("Videos and audio files are not supported.");
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                  return;
+                }
+                
+                if (file.type.startsWith('image/')) {
+                  setIsUploading(true);
+                  try {
+                    const filename = `${Date.now()}_${file.name}`;
+                    const { data, error } = await supabase.storage
+                      .from('chat-attachments')
+                      .upload(filename, file);
                     
-                  setAttachedImages(prev => [...prev, publicUrl]);
-                } catch (err) {
-                  console.error("Upload failed:", err);
-                  alert("Failed to upload image.");
-                } finally {
-                  setIsUploading(false);
+                    if (error) throw error;
+                    
+                    const { data: { publicUrl } } = supabase.storage
+                      .from('chat-attachments')
+                      .getPublicUrl(filename);
+                      
+                    setAttachedImages(prev => [...prev, publicUrl]);
+                  } catch (err) {
+                    console.error("Upload failed:", err);
+                    alert("Failed to upload image.");
+                  } finally {
+                    setIsUploading(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                } else {
+                  // Handle as text/code file
+                  if (file.size > 100 * 1024) { // 100KB limit
+                    alert("Text files must be smaller than 100KB to fit in the AI context window.");
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    return;
+                  }
+                  
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const content = e.target?.result as string;
+                    setAttachedFiles(prev => [...prev, { name: file.name, content }]);
+                  };
+                  reader.readAsText(file);
                   if (fileInputRef.current) fileInputRef.current.value = "";
                 }
               }}
@@ -385,7 +429,7 @@ export function ChatArea() {
             
             <button
               type="submit"
-              disabled={(!input.trim() && attachedImages.length === 0) || isLoading || isUploading}
+              disabled={(!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isLoading || isUploading}
               className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl transition-colors text-white"
             >
               <Send className="w-5 h-5" />
