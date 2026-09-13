@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X, GitBranch, RefreshCw } from "lucide-react";
+import { Send, Terminal, Sparkles, Loader2, Database, MessageSquare, Brain, Code2, Bug, FileCode2, Paperclip, X, GitBranch, RefreshCw, Copy, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -25,6 +25,26 @@ const SUGGESTION_POOL = [
   "Explain the database schema",
   "Find unused variables or dead code",
 ];
+
+function CopyMessageButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button 
+      onClick={handleCopy}
+      title="Copy message"
+      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
+    >
+      {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+    </button>
+  );
+}
 
 export function ChatArea() {
   const { 
@@ -289,39 +309,44 @@ export function ChatArea() {
                   <Sparkles className="w-4 h-4" />
                 </div>
               )}
-              <div className="prose prose-invert max-w-[85%] relative">
-                <ReactMarkdown
-                  components={{
-                    img: ({ node, ...props }) => (
-                      <img 
-                        {...props} 
-                        className="max-w-[150px] sm:max-w-[250px] h-auto rounded-xl border border-white/10 cursor-zoom-in hover:opacity-80 transition-opacity shadow-lg my-2 inline-block"
-                        onClick={() => setSelectedImage(typeof props.src === 'string' ? props.src : null)}
-                      />
-                    ),
-                    code: ({node, className, children, ...props}) => {
-                      const match = /language-(\w+)/.exec(className || '')
-                      return match ? (
-                        <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
-                      ) : (
-                        <code className="bg-black/40 rounded px-1.5 py-0.5 text-pink-300 font-mono text-[13px]" {...props}>
-                          {children}
-                        </code>
-                      )
-                    }
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
-                {msg.id && currentSessionId && (
-                  <button 
-                    onClick={() => forkChat(currentSessionId, msg.id!)}
-                    title="Fork conversation from here"
-                    className={`absolute ${msg.role === 'user' ? '-left-10' : '-right-10'} top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white`}
+              <div className={`flex flex-col gap-1 ${msg.role === 'assistant' ? 'w-full min-w-0' : 'max-w-[85%]'}`}>
+                <div className={`prose prose-invert ${msg.role === 'assistant' ? 'max-w-none' : ''}`}>
+                  <ReactMarkdown
+                    components={{
+                      img: ({ node, ...props }) => (
+                        <img 
+                          {...props} 
+                          className="max-w-[150px] sm:max-w-[250px] h-auto rounded-xl border border-white/10 cursor-zoom-in hover:opacity-80 transition-opacity shadow-lg my-2 inline-block"
+                          onClick={() => setSelectedImage(typeof props.src === 'string' ? props.src : null)}
+                        />
+                      ),
+                      code: ({node, className, children, ...props}) => {
+                        const match = /language-(\w+)/.exec(className || '')
+                        return match ? (
+                          <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
+                        ) : (
+                          <code className="bg-black/40 rounded px-1.5 py-0.5 text-pink-300 font-mono text-[13px]" {...props}>
+                            {children}
+                          </code>
+                        )
+                      }
+                    }}
                   >
-                    <GitBranch className="w-4 h-4" />
-                  </button>
-                )}
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  <CopyMessageButton content={msg.content} />
+                  {msg.id && currentSessionId && (
+                    <button 
+                      onClick={() => forkChat(currentSessionId, msg.id!)}
+                      title="Fork conversation from here"
+                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white"
+                    >
+                      <GitBranch className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               {msg.role === "user" && (
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-gray-300 border border-white/10 mt-1">
@@ -358,8 +383,8 @@ export function ChatArea() {
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-20">
-        <div className="max-w-4xl mx-auto flex flex-col gap-3">
+      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-20 pointer-events-none">
+        <div className="max-w-4xl mx-auto flex flex-col gap-3 pointer-events-auto">
           
           <div className="flex justify-center">
             <div className="bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10 flex items-center gap-1 relative">
