@@ -1,16 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, GitCommit } from 'lucide-react';
+import { X, Save, GitCommit, Sparkles, Loader2 } from 'lucide-react';
+import { useEditorStore } from '@/store/editorStore';
 
 interface CommitModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (message: string) => void;
   defaultMessage?: string;
+  repoId?: string;
 }
 
-export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "" }: CommitModalProps) {
+export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", repoId }: CommitModalProps) {
   const [commitMessage, setCommitMessage] = useState(defaultMessage);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { generateCommitMessage, isCommitting } = useEditorStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      setCommitMessage(defaultMessage);
+    }
+  }, [isOpen, defaultMessage]);
+
+  const handleGenerate = async () => {
+    if (!repoId) return;
+    setIsGenerating(true);
+    try {
+      const msg = await generateCommitMessage(repoId);
+      if (msg) setCommitMessage(msg);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -35,9 +58,21 @@ export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "" }:
               </button>
             </div>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Commit Message
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  Commit Message
+                </label>
+                {repoId && (
+                  <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+                  >
+                    {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    Generate with AI
+                  </button>
+                )}
+              </div>
               <textarea
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
@@ -57,17 +92,18 @@ export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "" }:
               <div className="flex justify-end gap-3 mt-6">
                 <button 
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                  disabled={isCommitting}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={() => onConfirm(commitMessage)}
-                  disabled={!commitMessage.trim()}
+                  disabled={!commitMessage.trim() || isCommitting}
                   className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors flex items-center gap-2 shadow-lg"
                 >
-                  <Save className="w-4 h-4" />
-                  Commit Changes
+                  {isCommitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isCommitting ? "Committing..." : "Commit Changes"}
                 </button>
               </div>
             </div>

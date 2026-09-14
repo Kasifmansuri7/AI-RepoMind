@@ -16,7 +16,9 @@ interface EditorState {
   isTreeLoading: boolean;
   isFileLoading: boolean;
   isSaving: boolean;
+  isCommitting: boolean;
   error: string | null;
+  modifiedFiles: Record<string, { original: string, current: string }>;
 
   setFileTree: (tree: FileNode | null) => void;
   setActiveFile: (path: string | null) => void;
@@ -25,6 +27,11 @@ interface EditorState {
   fetchFileTree: (repoId: string) => Promise<void>;
   fetchFileContent: (repoId: string, path: string) => Promise<void>;
   saveFileContent: (repoId: string, path: string, content: string, commitMessage?: string) => Promise<void>;
+  
+  updateModifiedFile: (path: string, original: string, current: string) => void;
+  revertFile: (path: string) => void;
+  bulkCommit: (repoId: string, message: string) => Promise<void>;
+  generateCommitMessage: (repoId: string) => Promise<string>;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -35,7 +42,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isTreeLoading: false,
   isFileLoading: false,
   isSaving: false,
+  isCommitting: false,
   error: null,
+  modifiedFiles: {},
 
   setFileTree: (tree) => set({ fileTree: tree }),
   
@@ -97,6 +106,65 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch (err: any) {
       console.error("Failed to save file:", err);
       set({ error: err.response?.data?.detail || "Failed to save file", isSaving: false });
+      throw err;
+    }
+  },
+
+  updateModifiedFile: (path, original, current) => {
+    set((state) => {
+      const newModified = { ...state.modifiedFiles };
+      if (original === current) {
+        delete newModified[path];
+      } else {
+        newModified[path] = { original, current };
+      }
+      return { modifiedFiles: newModified };
+    });
+  },
+
+  revertFile: (path) => {
+    set((state) => {
+      const newModified = { ...state.modifiedFiles };
+      delete newModified[path];
+      return { modifiedFiles: newModified };
+    });
+  },
+
+  bulkCommit: async (repoId: string, message: string) => {
+    const { modifiedFiles } = get();
+    if (Object.keys(modifiedFiles).length === 0) return;
+    
+    set({ isCommitting: true, error: null });
+    try {
+      const filesPayload = Object.fromEntries(
+        Object.entries(modifiedFiles).map(([path, data]) => [path, data.current])
+      );
+      
+      await apiClient.post(`/repos/${encodeURIComponent(repoId)}/files/bulk-commit`, {
+        message,
+        files: filesPayload
+      });
+      
+      // On success, clear modified files
+      set({ modifiedFiles: {}, isCommitting: false });
+    } catch (err: any) {
+      console.error("Bulk commit failed:", err);
+      set({ error: err.response?.data?.detail || "Bulk commit failed", isCommitting: false });
+      throw err;
+    }
+  },
+
+  generateCommitMessage: async (repoId: string) => {
+    const { modifiedFiles } = get();
+    if (Object.keys(modifiedFiles).length === 0) return "";
+    
+    try {
+      const response = await apiClient.post(`/repos/${encodeURIComponent(repoId)}/files/generate-commit-message`, {
+        files: modifiedFiles
+      });
+      return response.data.message;
+    } catch (err: any) {
+      console.error("Generate commit message failed:", err);
       throw err;
     }
   }

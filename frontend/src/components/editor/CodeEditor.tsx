@@ -1,9 +1,8 @@
-import { useState, SVGProps } from 'react';
-import Editor from '@monaco-editor/react';
+import { useState, SVGProps, useEffect } from 'react';
+import Editor, { DiffEditor } from '@monaco-editor/react';
 import { useEditorStore } from '@/store/editorStore';
 import { useChatStore } from '@/store/chatStore';
-import { Save, Copy, Download, Loader2 } from 'lucide-react';
-import { CommitModal } from './CommitModal';
+import { Save, Copy, Download, Loader2, GitMerge } from 'lucide-react';
 
 
 export function CodeEditor({ repoId }: { repoId: string }) {
@@ -14,40 +13,35 @@ export function CodeEditor({ repoId }: { repoId: string }) {
     setFileContent,
     saveFileContent,
     isFileLoading,
-    isSaving 
+    isSaving,
+    updateModifiedFile,
+    modifiedFiles
   } = useEditorStore();
   
   const { repos } = useChatStore();
 
   const isDirty = fileContent !== originalFileContent;
 
-  const [showCommitModal, setShowCommitModal] = useState(false);
-  const [defaultCommitMessage, setDefaultCommitMessage] = useState("");
+  const [viewMode, setViewMode] = useState<'edit' | 'diff'>('edit');
 
   const currentRepo = repos.find(r => r.id === repoId || r.name === repoId);
   const isGithubRepo = currentRepo?.url?.startsWith('https://github.com/');
+
+  // Reset view mode when changing files
+  useEffect(() => {
+    setViewMode('edit');
+  }, [activeFile]);
 
   const handleSave = async () => {
     if (!activeFile || !isDirty) return;
     
     if (isGithubRepo) {
-      setDefaultCommitMessage(`Update ${activeFile.split('/').pop()} via AI-RepoMind`);
-      setShowCommitModal(true);
+      updateModifiedFile(activeFile, originalFileContent, fileContent);
       return;
     }
     
     try {
       await saveFileContent(repoId, activeFile, fileContent);
-    } catch (e) {
-      // Error is handled in the store
-    }
-  };
-
-  const confirmCommit = async (message: string) => {
-    if (!activeFile || !isDirty) return;
-    setShowCommitModal(false);
-    try {
-      await saveFileContent(repoId, activeFile, fileContent, message);
     } catch (e) {
       // Error is handled in the store
     }
@@ -132,6 +126,18 @@ export function CodeEditor({ repoId }: { repoId: string }) {
             <Download className="w-4 h-4" />
           </button>
           <button
+            onClick={() => setViewMode(viewMode === 'edit' ? 'diff' : 'edit')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors
+              ${viewMode === 'diff' 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-white/10 text-gray-400 hover:text-white hover:bg-white/20'}
+            `}
+            title="Toggle Diff View"
+          >
+            <GitMerge className="w-4 h-4" />
+            Diff
+          </button>
+          <button
             onClick={handleSave}
             disabled={!isDirty || isSaving}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors
@@ -141,36 +147,48 @@ export function CodeEditor({ repoId }: { repoId: string }) {
             `}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {isGithubRepo ? "Commit to GitHub" : "Save"}
+            {isGithubRepo ? "Stage Changes" : "Save"}
           </button>
         </div>
       </div>
 
       {/* Monaco Editor */}
       <div className="flex-1 overflow-hidden">
-        <Editor
-          height="100%"
-          language={getLanguage(activeFile)}
-          theme="vs-dark"
-          value={fileContent}
-          onChange={(value) => setFileContent(value || "")}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            wordWrap: 'on',
-            scrollBeyondLastLine: false,
-            padding: { top: 16, bottom: 16 },
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-          }}
-        />
+        {viewMode === 'edit' ? (
+          <Editor
+            height="100%"
+            language={getLanguage(activeFile)}
+            theme="vs-dark"
+            value={fileContent}
+            onChange={(value) => setFileContent(value || "")}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              wordWrap: 'on',
+              scrollBeyondLastLine: false,
+              padding: { top: 16, bottom: 16 },
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            }}
+          />
+        ) : (
+          <DiffEditor
+            height="100%"
+            language={getLanguage(activeFile)}
+            theme="vs-dark"
+            original={originalFileContent}
+            modified={fileContent}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              wordWrap: 'on',
+              scrollBeyondLastLine: false,
+              padding: { top: 16, bottom: 16 },
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              readOnly: true
+            }}
+          />
+        )}
       </div>
-
-      <CommitModal 
-        isOpen={showCommitModal} 
-        onClose={() => setShowCommitModal(false)}
-        onConfirm={confirmCommit}
-        defaultMessage={defaultCommitMessage}
-      />
     </div>
   );
 }

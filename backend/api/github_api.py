@@ -91,3 +91,76 @@ def commit_github_file(owner: str, repo: str, path: str, content: str, token: st
     response = requests.put(url, headers=headers, json=payload)
     if response.status_code not in (200, 201):
         raise Exception(f"GitHub API Error: {response.text}")
+
+def bulk_commit_github_files(owner: str, repo: str, branch: str, token: str, message: str, files: dict) -> dict:
+    """
+    Commits multiple files in a single GitHub commit.
+    files is a dict mapping file path to new file content.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    base_url = f"https://api.github.com/repos/{owner}/{repo}"
+    
+    # 1. Get branch ref
+    ref_resp = requests.get(f"{base_url}/git/refs/heads/{branch}", headers=headers)
+    if ref_resp.status_code != 200:
+        raise Exception(f"Failed to get branch ref: {ref_resp.text}")
+    commit_sha = ref_resp.json()["object"]["sha"]
+    
+    # 2. Get commit base tree
+    commit_resp = requests.get(f"{base_url}/git/commits/{commit_sha}", headers=headers)
+    if commit_resp.status_code != 200:
+        raise Exception(f"Failed to get commit: {commit_resp.text}")
+    base_tree_sha = commit_resp.json()["tree"]["sha"]
+    
+    # 3. Create blobs for each file
+    tree_items = []
+    for path, content in files.items():
+        blob_payload = {
+            "content": base64.b64encode(content.encode("utf-8")).decode("utf-8"),
+            "encoding": "base64"
+        }
+        blob_resp = requests.post(f"{base_url}/git/blobs", headers=headers, json=blob_payload)
+        if blob_resp.status_code != 201:
+            raise Exception(f"Failed to create blob for {path}: {blob_resp.text}")
+        blob_sha = blob_resp.json()["sha"]
+        
+        tree_items.append({
+            "path": path,
+            "mode": "100644",
+            "type": "blob",
+            "sha": blob_sha
+        })
+        
+    # 4. Create new tree
+    tree_payload = {
+        "base_tree": base_tree_sha,
+        "tree": tree_items
+    }
+    tree_resp = requests.post(f"{base_url}/git/trees", headers=headers, json=tree_payload)
+    if tree_resp.status_code != 201:
+        raise Exception(f"Failed to create tree: {tree_resp.text}")
+    new_tree_sha = tree_resp.json()["sha"]
+    
+    # 5. Create new commit
+    commit_payload = {
+        "message": message,
+        "tree": new_tree_sha,
+        "parents": [commit_sha]
+    }
+    new_commit_resp = requests.post(f"{base_url}/git/commits", headers=headers, json=commit_payload)
+    if new_commit_resp.status_code != 201:
+        raise Exception(f"Failed to create commit: {new_commit_resp.text}")
+    new_commit_sha = new_commit_resp.json()["sha"]
+    
+    # 6. Update branch ref
+    update_ref_payload = {
+        "sha": new_commit_sha
+    }
+    update_ref_resp = requests.patch(f"{base_url}/git/refs/heads/{branch}", headers=headers, json=update_ref_payload)
+    if update_ref_resp.status_code != 200:
+        raise Exception(f"Failed to update branch ref: {update_ref_resp.text}")
+    
+    return update_ref_resp.json()

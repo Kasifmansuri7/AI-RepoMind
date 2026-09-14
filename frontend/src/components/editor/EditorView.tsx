@@ -1,15 +1,22 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { useChatStore } from '@/store/chatStore';
 import { FileExplorer } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
+import { SourceControlPanel } from './SourceControlPanel';
+import { FolderGit2, GitBranch } from 'lucide-react';
 
 export function EditorView() {
-  const { currentSessionId, sessions } = useChatStore();
-  const { fetchFileTree } = useEditorStore();
+  const { currentSessionId, sessions, repos } = useChatStore();
+  const { fetchFileTree, modifiedFiles } = useEditorStore();
+  const [activeTab, setActiveTab] = useState<'files' | 'source_control'>('files');
   
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const repoId = currentSession?.repo_id;
+
+  const currentRepo = repos.find(r => r.id === repoId || r.name === repoId);
+  const isGithubRepo = currentRepo?.url?.startsWith('https://github.com/');
+  const modifiedCount = Object.keys(modifiedFiles).length;
 
   useEffect(() => {
     if (repoId) {
@@ -38,13 +45,43 @@ export function EditorView() {
 
   return (
     <div className="flex-1 flex flex-row h-full overflow-hidden bg-[var(--background)]">
-      {/* Sidebar: File Explorer */}
+      {/* Sidebar */}
       <div className="w-64 border-r border-white/5 bg-[#18181b] flex flex-col">
-        <div className="p-3 border-b border-white/5 bg-black/20">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Explorer</h3>
-        </div>
+        {isGithubRepo ? (
+          <div className="flex border-b border-white/5 bg-black/20">
+            <button
+              onClick={() => setActiveTab('files')}
+              className={`flex-1 flex items-center justify-center gap-2 p-3 text-xs font-semibold uppercase tracking-wider transition-colors
+                ${activeTab === 'files' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'}
+              `}
+            >
+              <FolderGit2 className="w-4 h-4" />
+              Files
+            </button>
+            <button
+              onClick={() => setActiveTab('source_control')}
+              className={`flex-1 flex items-center justify-center gap-2 p-3 text-xs font-semibold uppercase tracking-wider transition-colors
+                ${activeTab === 'source_control' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'}
+              `}
+            >
+              <GitBranch className="w-4 h-4" />
+              Changes {modifiedCount > 0 && <span className="bg-indigo-500/20 text-indigo-400 px-1.5 rounded-full">{modifiedCount}</span>}
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 border-b border-white/5 bg-black/20">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <FolderGit2 className="w-4 h-4" /> Explorer
+            </h3>
+          </div>
+        )}
+        
         <div className="flex-1 overflow-hidden">
-          <FileExplorer repoId={repoId} />
+          {activeTab === 'files' ? (
+            <FileExplorer repoId={repoId} />
+          ) : (
+            <SourceControlPanel repoId={repoId} />
+          )}
         </div>
       </div>
       

@@ -14,3 +14,10 @@
 -- Code Sandbox Execution: Run the codebase in a secure browser sandbox to test AI fixes.
 -- "Explain this file" Annotations: Auto-generate summaries for files hovering in the frontend File Explorer.
 -- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.
+-- Hide chat sidebase with slide to left and feature so user can get full immersed code editor
+-- Show git branch flow
+-- While cloning repo via github repos, ask for which branch to clone as well
+-- Change UI theme to monaco colors of vs-dark.
+-- Currently everything is happening in the single route. This is not good.
+-- Some button which will draw full application flow with nodes and explain how everything is working etc..
+-- Composer can directly make file changes and it will get reflected automatically. Also we can put redirection to show that change in the code editor with file ref.
