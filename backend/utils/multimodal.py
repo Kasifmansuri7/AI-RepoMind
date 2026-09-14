@@ -1,4 +1,27 @@
 import re
+import requests
+import base64
+import mimetypes
+
+def url_to_base64(url: str) -> str:
+    if url.startswith("data:"):
+        return url
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type or not content_type.startswith("image/"):
+            content_type, _ = mimetypes.guess_type(url.split("?")[0])
+            content_type = content_type or "image/jpeg"
+            
+        encoded = base64.b64encode(response.content).decode("utf-8")
+        return f"data:{content_type};base64,{encoded}"
+    except Exception as e:
+        print(f"Failed to fetch image {url}: {e}")
+        # Fallback to the original URL
+        return url
 
 def parse_multimodal_content(text: str) -> list | str:
     """
@@ -18,8 +41,11 @@ def parse_multimodal_content(text: str) -> list | str:
             if text_part:
                 parts.append({"type": "text", "text": text_part})
             
-        # Add the image URL
+        # Add the image URL, converting HTTP to base64 if needed
         img_url = match.group(1)
+        if img_url.startswith("http"):
+            img_url = url_to_base64(img_url)
+            
         parts.append({
             "type": "image_url",
             "image_url": {"url": img_url}

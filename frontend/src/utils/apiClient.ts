@@ -4,7 +4,7 @@ import { supabase } from "@/utils/supabase/client";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const apiClient = axios.create({
-  baseURL: API_URL,
+  baseURL: `${API_URL.replace(/\/$/, '')}/api`,
 });
 
 apiClient.interceptors.request.use(
@@ -14,6 +14,10 @@ apiClient.interceptors.request.use(
     
     if (session?.access_token) {
       config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
+    if (session?.provider_token) {
+      config.headers["X-GitHub-Token"] = session.provider_token;
     }
     
     return config;

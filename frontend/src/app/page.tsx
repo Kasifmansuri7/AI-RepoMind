@@ -6,11 +6,14 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { RepoIngestionModal } from "@/components/RepoIngestionModal";
+import { EditorView } from "@/components/editor/EditorView";
+import { Code2, MessageSquare } from "lucide-react";
 
 export default function Home() {
-  const { isLoggedIn, isAuthLoading, initializeAuth } = useChatStore();
+  const { isLoggedIn, isAuthLoading, initializeAuth, currentSessionId } = useChatStore();
   const [mounted, setMounted] = useState(false);
   const [isIngestOpen, setIsIngestOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "editor">("chat");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -75,7 +78,42 @@ export default function Home() {
   return (
     <div className="flex h-screen overflow-hidden relative">
       <Sidebar onOpenIngest={() => setIsIngestOpen(true)} />
-      <ChatArea />
+      
+      <div className="flex-1 flex flex-col bg-[var(--background)]">
+        {/* Top Navigation Bar */}
+        {currentSessionId && (
+          <div className="flex items-center justify-center border-b border-white/5 bg-black/10 py-2">
+            <div className="flex bg-white/5 p-1 rounded-lg">
+              <button
+                onClick={() => setActiveTab("chat")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "chat" 
+                    ? "bg-white/10 text-white shadow-sm" 
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                Chat
+              </button>
+              <button
+                onClick={() => setActiveTab("editor")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "editor" 
+                    ? "bg-white/10 text-white shadow-sm" 
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Code2 className="w-4 h-4" />
+                Editor
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Main Content Area */}
+        {activeTab === "chat" ? <ChatArea /> : <EditorView />}
+      </div>
+      
       <RepoIngestionModal isOpen={isIngestOpen} onClose={() => setIsIngestOpen(false)} />
     </div>
   );

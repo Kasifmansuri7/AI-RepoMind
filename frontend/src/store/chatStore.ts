@@ -122,7 +122,7 @@ export const useChatStore = create<ChatState>()(
         if (!session) return;
         set({ isReposLoading: true });
         try {
-          const res = await apiClient.get('/api/repos');
+          const res = await apiClient.get('/repos');
           const data = res.data;
           set({ repos: data });
           if (data.length > 0 && !get().repoName) {
@@ -139,7 +139,7 @@ export const useChatStore = create<ChatState>()(
         const { session, repos, repoName } = get();
         if (!session) return false;
         try {
-          await apiClient.delete(`/api/repos/${encodeURIComponent(repoId)}`);
+          await apiClient.delete(`/repos/${encodeURIComponent(repoId)}`);
           
           const remainingRepos = repos.filter(r => r.id !== repoId && r.name !== repoId);
           set({ repos: remainingRepos });
@@ -170,7 +170,7 @@ export const useChatStore = create<ChatState>()(
           if (chatSearchQuery) params.append("search", chatSearchQuery);
           if (repoFilter !== "all") params.append("repo_id", `${tenantId}_${repoFilter}`);
           
-          const res = await apiClient.get(`/api/chats?${params.toString()}`);
+          const res = await apiClient.get(`/chats?${params.toString()}`);
           set((state) => ({ 
             sessions: page === 1 ? res.data.items : [...state.sessions, ...res.data.items],
             sessionsPage: page,
@@ -191,7 +191,7 @@ export const useChatStore = create<ChatState>()(
         
         try {
           const params = new URLSearchParams({ page: page.toString(), limit: "50" });
-          const res = await apiClient.get(`/api/chats/${sessionId}?${params.toString()}`);
+          const res = await apiClient.get(`/chats/${sessionId}?${params.toString()}`);
           set((state) => ({ 
             messages: page === 1 ? res.data.items : [...res.data.items, ...state.messages], 
             currentSessionId: sessionId,
@@ -209,7 +209,7 @@ export const useChatStore = create<ChatState>()(
         const { session, sessions, currentSessionId } = get();
         if (!session) return false;
         try {
-          await apiClient.delete(`/api/chats/${sessionId}`);
+          await apiClient.delete(`/chats/${sessionId}`);
           
           const remainingSessions = sessions.filter(s => s.id !== sessionId);
           set({ sessions: remainingSessions });
@@ -229,7 +229,7 @@ export const useChatStore = create<ChatState>()(
         const { session } = get();
         if (!session) return "";
         try {
-          const res = await apiClient.post(`/api/chats/${sessionId}/fork`, { message_id: messageId });
+          const res = await apiClient.post(`/chats/${sessionId}/fork`, { message_id: messageId });
           const newSessionId = res.data.new_session_id;
           
           // Switch to new session

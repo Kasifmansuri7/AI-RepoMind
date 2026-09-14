@@ -18,7 +18,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.api.middleware import TenantAuthMiddleware
 from backend.db.postgres import init_db
-from backend.api.routers import chat, repos, history
+from backend.api.routers import chat, repos, history, files
 
 app = FastAPI(title="AI RepoMind API")
 
@@ -39,6 +39,7 @@ app.add_middleware(
 def on_startup():
     init_db()
 
-app.include_router(chat.router, prefix="/api")
-app.include_router(repos.router, prefix="/api")
-app.include_router(history.router, prefix="/api")
+app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(repos.router, prefix="/api", tags=["repos"])
+app.include_router(history.router, prefix="/api", tags=["history"])
+app.include_router(files.router, prefix="/api", tags=["files"])

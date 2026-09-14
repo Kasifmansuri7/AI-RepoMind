@@ -314,6 +314,7 @@ _These features add a "Wow" factor and make the tool feel like a premium AI prod
 - ✅ **Local Directory Mounting & Cloud Integration (Completed)**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
 - **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
 - **File & Function Annotations**: Generate automated, quick summaries for files or functions when hovering in the frontend.
+- **Multi-Provider Support (TODO)**: Expand the stateless sync & commit feature to support other git providers like GitLab and Bitbucket using their respective REST APIs.
 
 ### 🔴 Phase 3: High Impact, High Effort (The Moonshots)
 

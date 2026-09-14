@@ -57,7 +57,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
 
     // 1. Signal the backend to stop the pipeline
     try {
-      await apiClient.post("/api/repos/ingest/cancel");
+      await apiClient.post("/repos/ingest/cancel");
     } catch (e) {
       console.error("Failed to send cancel signal:", e);
     }
@@ -80,7 +80,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
     setIsFetchingBranches(true);
     setStatus("Fetching branches...");
     try {
-      const res = await apiClient.post("/api/repos/branches", {
+      const res = await apiClient.post("/repos/branches", {
         url: repoUrl,
         token: repoToken.trim() || undefined
       });
@@ -116,7 +116,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
     setStatus("Connecting to server...");
 
     try {
-      const res = await apiClient.post(`/api/repos/ingest`, 
+      const res = await apiClient.post(`/repos/ingest`, 
         { url: ingestUrl, token: ingestToken || undefined, branch: ingestBranch || undefined },
         {
           responseType: 'stream',

@@ -34,7 +34,7 @@ export function ContextRulesModal({ isOpen, onClose, repoId, repoName }: Context
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get(`/api/repos/${encodeURIComponent(repoId)}/rules?format=${selectedFormat}`);
+      const res = await apiClient.get(`/repos/${encodeURIComponent(repoId)}/rules?format=${selectedFormat}`);
       setRules(res.data.rules);
       setFilename(res.data.filename);
     } catch (err: unknown) {

@@ -155,10 +155,19 @@ export function ChatArea() {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         
+        let currentEvent = "message";
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.replace("event: ", "").trim();
+          } else if (line.startsWith("data: ")) {
             const dataStr = line.replace("data: ", "").trim();
             if (!dataStr) continue;
+            
+            if (currentEvent === "error") {
+              addMessage({ role: "assistant", content: `**Error:** ${dataStr}` });
+              setStatus("");
+              continue;
+            }
             
             if (line.includes('"token"')) {
               try {
@@ -249,41 +258,45 @@ export function ChatArea() {
                   <Database className="w-8 h-8 text-blue-400" />
                 </div>
                 <h2 className="text-3xl font-bold mb-3 tracking-tight text-white">
-                  Welcome to {repoName}
+                  Welcome to {repoName || "AI-RepoMind"}
                 </h2>
                 <p className="text-gray-400 text-base leading-relaxed mb-10">
-                  I can analyze architecture, find bugs, write new features, and explain complex logic using the LangGraph agent loop.
+                  {repoName 
+                    ? "I can analyze architecture, find bugs, write new features, and explain complex logic using the LangGraph agent loop."
+                    : "Please select a repository from the sidebar or click 'Add Repository' to get started."}
                 </p>
               </div>
               
-              <div className="w-full flex flex-wrap justify-center items-center gap-3">
-                {currentSuggestions.map((quickMsg, i) => (
-                  <motion.button
-                    key={quickMsg}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 * i, duration: 0.4 }}
-                    onClick={() => sendMessage(quickMsg)}
-                    className="px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-sm text-gray-300 hover:text-white flex items-center gap-2 shadow-sm"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>{quickMsg}</span>
-                  </motion.button>
-                ))}
-                
-                {currentSuggestions.length > 0 && (
-                  <motion.button
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5, duration: 0.4 }}
-                    onClick={refreshSuggestions}
-                    title="Show more suggestions"
-                    className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-gray-400 hover:text-white flex items-center justify-center shadow-sm"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </motion.button>
-                )}
-              </div>
+              {repoName && (
+                <div className="w-full flex flex-wrap justify-center items-center gap-3">
+                  {currentSuggestions.map((quickMsg, i) => (
+                    <motion.button
+                      key={quickMsg}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * i, duration: 0.4 }}
+                      onClick={() => sendMessage(quickMsg)}
+                      className="px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-sm text-gray-300 hover:text-white flex items-center gap-2 shadow-sm"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span>{quickMsg}</span>
+                    </motion.button>
+                  ))}
+                  
+                  {currentSuggestions.length > 0 && (
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5, duration: 0.4 }}
+                      onClick={refreshSuggestions}
+                      title="Show more suggestions"
+                      className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-gray-400 hover:text-white flex items-center justify-center shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </motion.button>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -455,9 +468,9 @@ export function ChatArea() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask your codebase anything..."
-              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400"
-              disabled={isLoading}
+              placeholder={repoName ? "Ask your codebase anything..." : "Select a repository to start chatting..."}
+              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400 disabled:opacity-50"
+              disabled={isLoading || !repoName}
             />
             
             <input 
