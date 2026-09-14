@@ -19,6 +19,7 @@ import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 import { DeleteChatModal } from "@/components/DeleteChatModal";
 import { ContextRulesModal } from "@/components/ContextRulesModal";
+import { LogoutConfirmModal } from "@/components/LogoutConfirmModal";
 import { Skeleton } from "@/components/Skeleton";
 import { timeAgo } from "@/utils/time";
 
@@ -52,6 +53,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
   const [chatFilterRepo, setChatFilterRepo] = useState<string>("all");
   const [selectedRepoForRules, setSelectedRepoForRules] = useState<Repo | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -411,7 +413,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
             </span>
           </div>
           <button 
-            onClick={logout} 
+            onClick={() => setShowLogoutConfirm(true)} 
             title="Log out"
             className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition"
           >
@@ -432,6 +434,16 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
         isOpen={!!chatToDelete}
         chat={chatToDelete}
         onClose={() => setChatToDelete(null)}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+        }}
       />
 
       {/* Context Rules Modal */}
