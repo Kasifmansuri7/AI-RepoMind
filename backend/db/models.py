@@ -32,6 +32,8 @@ class ChatSession(Base):
     repo_id = Column(String, ForeignKey("repositories.id"), nullable=False)
     title = Column(String, nullable=True)
     summary = Column(String, nullable=True)
+    parent_session_id = Column(String, ForeignKey("chat_sessions.id"), nullable=True)
+    forked_from_message_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant")

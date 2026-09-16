@@ -302,18 +302,19 @@ _These features fix immediate UX problems and improve the core RAG accuracy._
 - ✅ **Advanced Hybrid Search (Completed)**: Combine Vector Embeddings (semantic) with BM25 (keyword) for accurate and robust code search.
 - ✅ **Pre-Clone Repo Details (Completed)**: Fetch repo metadata (branches) securely via `git ls-remote` so users can select specific targets before cloning.
 - ✅ **Pagination & Server-Side Filtering (Completed)**: Implement backend pagination, infinite scrolling, and full-text search for managing chat history efficiently.
-- **Context File Generation**: Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
-- **Chat Auto-Summarization**: Automatically summarize long chat histories to save LLM context window tokens while retaining the core context of very long conversations.
+- ✅ **Context File Generation (Completed)** : Auto-generate context files like `.cursorrules` or instructions based on repo tech stack for local IDE use.
+- ✅ **Chat Auto-Summarization (Completed)**: Automatically summarize long chat histories to save LLM context window tokens while retaining the core context of very long conversations.
 
 ### 🟡 Phase 2: High Impact, Medium Effort (The Differentiators)
 
 _These features add a "Wow" factor and make the tool feel like a premium AI product._
 
-- **UI Revamp**: Modernize the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
-- **Multi-Modal Uploads**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
-- **Local Directory Mounting & Cloud Integration**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
+- ✅ **UI Revamp (Completed)**: Modernized the design with premium aesthetics, glassmorphism, and dynamic micro-animations.
+- ✅ **Multi-Modal Uploads (Completed)**: Allow users to upload images (like UI bugs or diagrams) to ask questions mapped to codebase files.
+- ✅ **Local Directory Mounting & Cloud Integration (Completed)**: Read files directly from the user's disk via MCP or integrate OAuth to access GitHub/GitLab directly without cloning.
 - **Prompt Injection Protection**: Utilize secondary LLMs or tools like `llm-guard` for content filtering and sanitization.
 - **File & Function Annotations**: Generate automated, quick summaries for files or functions when hovering in the frontend.
+- **Multi-Provider Support (TODO)**: Expand the stateless sync & commit feature to support other git providers like GitLab and Bitbucket using their respective REST APIs.
 
 ### 🔴 Phase 3: High Impact, High Effort (The Moonshots)
 
@@ -321,7 +322,6 @@ _Complex, standalone features that require significant engineering but turn the 
 
 - **Branched Chats (Tree Structure)**: Allow users to fork a conversation from any historical message to explore multiple problem-solving directions without losing original context.
 - **Frontend File Explorer & Editor**: Embed a file tree and Monaco Editor in the frontend to allow users to make changes directly from the web interface.
-- **Interactive Architecture Graph**: Render a 2D map of the codebase dependencies for visual navigation (e.g., using React Flow).
 - **Automated PR Review Mode**: Analyze Pull Requests against the codebase and act as an AI reviewer for potential bugs.
 - **Code Sandbox Execution**: Run the codebase in a secure browser sandbox (like WebContainers) to test AI fixes before application.
 - **Self-Healing Tests**: Intercept failing test stack traces and suggest automatic fixes in the chat interface.

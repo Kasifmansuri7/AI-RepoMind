@@ -4,29 +4,20 @@ from .state import AgentState
 from backend.rag.search import CodeSearcher
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
+from backend.utils.multimodal import parse_multimodal_content
 import json
+from pydantic import BaseModel, Field
+from typing import List, Literal
 
 # We use the reliable gpt-4o-mini for fast, cheap agent interactions
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 # 1. PLANNER
-planner_llm = llm.bind_tools([
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_plan",
-            "description": "Generate a plan and search queries",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "plan": {"type": "string"},
-                    "search_queries": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["plan", "search_queries"]
-            }
-        }
-    }
-], tool_choice="generate_plan")
+class PlanResult(BaseModel):
+    plan: str = Field(description="A plan to solve the user's task")
+    search_queries: List[str] = Field(description="Exactly 1-3 highly specific code search queries to find relevant code in the vector database")
+
+planner_llm = llm.with_structured_output(PlanResult)
 
 def planner_node(state: AgentState):
     print("--- PLANNER ---")
@@ -38,11 +29,10 @@ def planner_node(state: AgentState):
     user_content = f"Chat History:\n{state.get('chat_history', '')}\n\nCurrent Task: {state['task']}"
     response = planner_llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
-    args = response.tool_calls[0]["args"]
-    return {"plan": args["plan"], "search_queries": args["search_queries"]}
+    return {"plan": response.plan, "search_queries": response.search_queries}
 
 # 2. SEARCH CONTEXT
 def search_node(state: AgentState):
@@ -90,33 +80,17 @@ def coder_node(state: AgentState):
         
     response = llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
     return {"draft_code": response.content}
 
 # 4. REVIEWER
-reviewer_llm = llm.bind_tools([
-    {
-        "type": "function",
-        "function": {
-            "name": "submit_review",
-            "description": "Submit a review of the code",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": ["approve", "rewrite", "replan"],
-                        "description": "approve if code solves task. rewrite if context is good but code is wrong. replan if the context is missing necessary files/info."
-                    },
-                    "feedback": {"type": "string", "description": "Constructive feedback if rejected, or empty if approved."}
-                },
-                "required": ["action", "feedback"]
-            }
-        }
-    }
-], tool_choice="submit_review")
+class ReviewResult(BaseModel):
+    action: Literal["approve", "rewrite", "replan"] = Field(description="approve if code solves task. rewrite if context is good but code is wrong. replan if the context is missing necessary files/info.")
+    feedback: str = Field(description="Constructive feedback if rejected, or empty if approved.")
+
+reviewer_llm = llm.with_structured_output(ReviewResult)
 
 def reviewer_node(state: AgentState):
     print("--- REVIEWER ---")
@@ -130,14 +104,13 @@ def reviewer_node(state: AgentState):
     
     response = reviewer_llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content)
+        HumanMessage(content=parse_multimodal_content(user_content))
     ])
     
-    args = response.tool_calls[0]["args"]
     current_revisions = state.get("revision_number", 0)
     
     return {
-        "review_action": args["action"],
-        "review_feedback": args["feedback"],
+        "review_action": response.action,
+        "review_feedback": response.feedback,
         "revision_number": current_revisions + 1
     }

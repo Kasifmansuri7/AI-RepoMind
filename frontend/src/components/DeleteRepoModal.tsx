@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Trash2, X, Loader2 } from "lucide-react";
 import { useChatStore, Repo } from "@/store/chatStore";
+import { useDeleteRepo, useRepos } from "@/hooks/useRepos";
 
 interface DeleteRepoModalProps {
   isOpen: boolean;
@@ -12,23 +13,29 @@ interface DeleteRepoModalProps {
 }
 
 export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps) {
-  const { deleteRepo } = useChatStore();
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { repoName, setRepoName, setCurrentSessionId } = useChatStore();
+  const { data: repos = [] } = useRepos();
+  const deleteRepoMutation = useDeleteRepo();
   const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (!repo) return;
-    setIsDeleting(true);
     setError(null);
 
     try {
-      await deleteRepo(repo.id);
-      setIsDeleting(false);
+      await deleteRepoMutation.mutateAsync(repo.id);
+      
+      if (repo.name === repoName) {
+        const remainingRepos = repos.filter(r => r.id !== repo.id);
+        const nextRepo = remainingRepos.length > 0 ? remainingRepos[0].name : "";
+        setRepoName(nextRepo);
+        setCurrentSessionId(null);
+      }
+      
       onClose();
     } catch (err: unknown) {
       console.error(err);
       setError("Failed to delete repository. Please check server logs and try again.");
-      setIsDeleting(false);
     }
   };
 
@@ -44,8 +51,8 @@ export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps)
             className="glass-card w-full max-w-md rounded-2xl p-6 relative border border-white/10 shadow-2xl"
           >
             <button
-              onClick={!isDeleting ? onClose : undefined}
-              disabled={isDeleting}
+              onClick={!deleteRepoMutation.isPending ? onClose : undefined}
+              disabled={deleteRepoMutation.isPending}
               className="absolute top-4 right-4 text-gray-400 hover:text-white transition disabled:opacity-50"
             >
               <X className="w-5 h-5" />
@@ -85,7 +92,7 @@ export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps)
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isDeleting}
+                disabled={deleteRepoMutation.isPending}
                 className="px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition disabled:opacity-50"
               >
                 Cancel
@@ -93,10 +100,10 @@ export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps)
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition flex items-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50"
+                disabled={deleteRepoMutation.isPending}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                {isDeleting ? (
+                {deleteRepoMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Deleting...</span>

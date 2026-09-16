@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Trash2, X, Loader2 } from "lucide-react";
 import { useChatStore, ChatSession } from "@/store/chatStore";
+import { useDeleteSession, useSessions } from "@/hooks/useSessions";
 
 interface DeleteChatModalProps {
   isOpen: boolean;
@@ -12,23 +13,28 @@ interface DeleteChatModalProps {
 }
 
 export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps) {
-  const { deleteSession } = useChatStore();
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { currentSessionId, setCurrentSessionId, tenantId } = useChatStore();
+  const { data: sessionsData } = useSessions(tenantId);
+  const deleteSessionMutation = useDeleteSession();
   const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (!chat) return;
-    setIsDeleting(true);
     setError(null);
 
     try {
-      await deleteSession(chat.id);
-      setIsDeleting(false);
+      await deleteSessionMutation.mutateAsync(chat.id);
+      
+      const sessions = sessionsData?.pages.flatMap(p => p.items) || [];
+      const remainingSessions = sessions.filter(s => s.id !== chat.id);
+      if (currentSessionId === chat.id || !remainingSessions.some(s => s.id === currentSessionId)) {
+        setCurrentSessionId(null);
+      }
+      
       onClose();
     } catch (err: unknown) {
       console.error(err);
       setError("Failed to delete chat session. Please try again.");
-      setIsDeleting(false);
     }
   };
 
@@ -44,8 +50,8 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
             className="glass-card w-full max-w-md rounded-2xl p-6 relative border border-white/10 shadow-2xl"
           >
             <button
-              onClick={!isDeleting ? onClose : undefined}
-              disabled={isDeleting}
+              onClick={!deleteSessionMutation.isPending ? onClose : undefined}
+              disabled={deleteSessionMutation.isPending}
               className="absolute top-4 right-4 text-gray-400 hover:text-white transition disabled:opacity-50"
             >
               <X className="w-5 h-5" />
@@ -80,7 +86,7 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isDeleting}
+                disabled={deleteSessionMutation.isPending}
                 className="px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-medium transition disabled:opacity-50"
               >
                 Cancel
@@ -88,10 +94,10 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition flex items-center gap-2 shadow-lg shadow-red-600/20 disabled:opacity-50"
+                disabled={deleteSessionMutation.isPending}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                {isDeleting ? (
+                {deleteSessionMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Deleting...</span>

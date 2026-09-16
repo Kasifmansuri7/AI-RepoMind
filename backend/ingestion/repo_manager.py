@@ -149,3 +149,59 @@ class RepoManager:
                 if extensions is None or any(filename.endswith(ext) for ext in extensions):
                     files.append(Path(root) / filename)
         return files
+
+    def get_file_tree(self, repo_path: Path) -> dict:
+        """Returns a nested dictionary representing the file tree."""
+        tree = {"name": repo_path.name, "type": "directory", "children": []}
+        
+        def build_tree(current_path: Path):
+            children = []
+            try:
+                for item in current_path.iterdir():
+                    if item.name in (".git", "node_modules", "venv", "__pycache__", ".venv"):
+                        continue
+                    if item.is_dir():
+                        children.append({
+                            "name": item.name,
+                            "path": item.relative_to(repo_path).as_posix(),
+                            "type": "directory",
+                            "children": build_tree(item)
+                        })
+                    else:
+                        children.append({
+                            "name": item.name,
+                            "path": item.relative_to(repo_path).as_posix(),
+                            "type": "file"
+                        })
+            except Exception as e:
+                print(f"Error reading directory {current_path}: {e}")
+            
+            children.sort(key=lambda x: (0 if x["type"] == "directory" else 1, x["name"].lower()))
+            return children
+
+        tree["children"] = build_tree(repo_path)
+        return tree
+
+    def read_file(self, repo_path: Path, file_relative_path: str) -> str:
+        target = (repo_path / file_relative_path).resolve()
+        if repo_path.resolve() not in target.parents and repo_path.resolve() != target.parent:
+             # Using os.path.commonpath is safer
+             if os.path.commonpath([str(repo_path.resolve()), str(target)]) != str(repo_path.resolve()):
+                 raise ValueError("Access denied: path is outside the repository")
+        
+        if not target.exists() or not target.is_file():
+            raise FileNotFoundError(f"File not found: {file_relative_path}")
+            
+        with open(target, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+    def write_file(self, repo_path: Path, file_relative_path: str, content: str):
+        target = (repo_path / file_relative_path).resolve()
+        if os.path.commonpath([str(repo_path.resolve()), str(target)]) != str(repo_path.resolve()):
+            raise ValueError("Access denied: path is outside the repository")
+            
+        if not target.exists() or not target.is_file():
+            raise FileNotFoundError(f"File not found: {file_relative_path}")
+            
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(content)

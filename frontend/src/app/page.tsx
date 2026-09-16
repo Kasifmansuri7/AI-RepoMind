@@ -1,40 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useChatStore } from "@/store/chatStore";
-import { LoginScreen } from "@/components/LoginScreen";
-import { Sidebar } from "@/components/Sidebar";
-import { ChatArea } from "@/components/ChatArea";
-import { RepoIngestionModal } from "@/components/RepoIngestionModal";
 
 export default function Home() {
   const { isLoggedIn, isAuthLoading, initializeAuth } = useChatStore();
-  const [mounted, setMounted] = useState(false);
-  const [isIngestOpen, setIsIngestOpen] = useState(false);
+  const router = useRouter();
 
-  // Prevent hydration mismatch with Zustand persist by waiting for mount
   useEffect(() => {
-    setMounted(true);
     initializeAuth();
   }, [initializeAuth]);
 
-  if (!mounted || isAuthLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-black">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!isLoggedIn) {
-    return <LoginScreen />;
-  }
+  useEffect(() => {
+    if (!isAuthLoading) {
+      if (isLoggedIn) {
+        router.replace("/chat");
+      } else {
+        router.replace("/login");
+      }
+    }
+  }, [isLoggedIn, isAuthLoading, router]);
 
   return (
-    <div className="flex h-screen overflow-hidden relative">
-      <Sidebar onOpenIngest={() => setIsIngestOpen(true)} />
-      <ChatArea />
-      <RepoIngestionModal isOpen={isIngestOpen} onClose={() => setIsIngestOpen(false)} />
+    <div className="flex h-screen overflow-hidden bg-[var(--background)] justify-center items-center">
+      <div className="animate-pulse flex flex-col items-center">
+        <div className="w-12 h-12 rounded-full bg-white/10 mb-4" />
+        <div className="h-4 w-24 bg-white/10 rounded-md" />
+      </div>
     </div>
   );
 }

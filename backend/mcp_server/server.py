@@ -9,14 +9,16 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 # Add backend to path so we can import our existing modules
 sys.path.append(os.path.dirname(backend_dir))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
 from backend.rag.search import CodeSearcher
 from backend.agents.graph import agent_graph
+from backend.db.postgres import SessionLocal
+from backend.ingestion.pipeline import ingest_repository_generator
 
 # Create the MCP Server 
-mcp = FastMCP("AI RepoMind Codebase Assistant")
+mcp = MCPServer("AI RepoMind Codebase Assistant")
 
 @mcp.tool()
 def search_codebase(query: str, repo_name: str = None) -> str:
@@ -86,6 +88,42 @@ def autonomous_agent_task(task_description: str, repo_name: str = None) -> str:
         return response
     except Exception as e:
         return f"Agent failed: {e}"
+
+@mcp.tool()
+async def index_local_repo(local_path: str) -> str:
+    """
+    Index a local directory on your machine so it can be searched by the codebase assistant.
+    This reads the local files directly without cloning.
+    
+    Args:
+        local_path: The absolute path to the local directory.
+    """
+    tenant_id = os.getenv("MCP_TENANT_ID")
+    if not tenant_id:
+        return "Error: MCP_TENANT_ID environment variable is not set."
+        
+    db = SessionLocal()
+    status_updates = []
+    try:
+        # The generator yields progress events as dicts: {"event": "...", "data": "..."}
+        for event in ingest_repository_generator(source=local_path, tenant_id=tenant_id, db=db):
+            event_type = event.get("event")
+            data = event.get("data")
+            
+            if event_type == "error":
+                return f"Ingestion failed: {data}\n\nLog: " + " | ".join(status_updates)
+            
+            if event_type == "status":
+                status_updates.append(str(data))
+                
+            if event_type == "success":
+                return f"Successfully indexed local repository '{data}'!\n\nDetails:\n" + "\n".join(f"- {msg}" for msg in status_updates)
+                
+        return "Ingestion finished but no success event was received. Log: " + " | ".join(status_updates)
+    except Exception as e:
+        return f"An error occurred while indexing local repository: {str(e)}"
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     # Start the stdio server (this is what Claude Desktop connects to)

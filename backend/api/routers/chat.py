@@ -10,6 +10,7 @@ from backend.agents.graph import agent_graph
 from backend.rag.search import CodeSearcher
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
+from backend.utils.multimodal import parse_multimodal_content
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ class ChatRequest(BaseModel):
     message: str
     repo_name: str
     session_id: Optional[str] = None
-    mode: str = "ask"
+    mode: str = "auto"
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -35,6 +36,22 @@ def generate_chat_title(message: str) -> str:
         return response.content.strip()
     except Exception:
         return message[:30] + "..."
+
+async def determine_chat_mode(message: str) -> str:
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        messages = [
+            SystemMessage(content="You are an intent classifier for a coding assistant. Return ONLY the word 'ask' or 'plan' based on the user's message. Reply 'ask' for simple questions, explanations, asking for how things work, or finding bugs. Reply 'plan' for complex tasks requiring writing new code, refactoring, modifying files, creating features, or deep architectural analysis. Reply 'ask' if you are unsure."),
+            HumanMessage(content=message)
+        ]
+        response = await llm.ainvoke(messages)
+        mode = response.content.strip().lower()
+        if mode in ["ask", "plan"]:
+            return mode
+        return "ask"
+    except Exception as e:
+        print(f"Failed to classify mode: {e}")
+        return "ask"
 
 def ensure_tenant(db, tenant_id: str):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -137,8 +154,9 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
     system_prompt = (
         f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. "
         "Provide a fast, concise answer based on the provided codebase context. "
+        "If the user asks a high-level question (e.g., 'Explain the architecture') and the codebase context is empty or limited, DO NOT give a generic refusal. Instead, explain whatever you can infer, and suggest they use **Composer mode** for a deep codebase analysis. "
         "IMPORTANT: You MUST ONLY respond to questions related to the codebase, programming, or technical topics. Do not answer general knowledge questions. "
-        "When greeting the user or responding to general queries, ALWAYS explicitly mention the repository name. "
+        "When greeting the user, explicitly mention the repository name. "
     )
     if summary_text:
         system_prompt += f"\n\nPrevious Conversation Summary:\n{summary_text}"
@@ -148,11 +166,11 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
     messages = [SystemMessage(content=system_prompt)]
     for msg in history_msgs[:-1]:
         if msg.role == "user":
-            messages.append(HumanMessage(content=msg.content))
+            messages.append(HumanMessage(content=parse_multimodal_content(msg.content)))
         elif msg.role == "assistant":
             messages.append(AIMessage(content=msg.content))
             
-    messages.append(HumanMessage(content=body.message))
+    messages.append(HumanMessage(content=parse_multimodal_content(body.message)))
     
     final_answer = ""
     async for chunk in llm.astream(messages):
@@ -227,7 +245,13 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             
             result_ref = {"final_answer": ""}
             
-            if body.mode == "ask":
+            if body.mode == "auto":
+                actual_mode = await determine_chat_mode(body.message)
+                yield {"event": "mode_switch", "data": json.dumps({"mode": actual_mode})}
+            else:
+                actual_mode = body.mode
+            
+            if actual_mode == "ask":
                 async for event in stream_ask_mode(body, tenant_id, recent_msgs, summary_text, result_ref):
                     yield event
             else:
