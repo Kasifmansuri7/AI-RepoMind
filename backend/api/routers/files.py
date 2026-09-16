@@ -215,3 +215,56 @@ async def generate_commit_message(repo_id: str, body: GenerateCommitMessageReque
         return {"message": response.content.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/repos/{repo_id:path}/files/explain")
+async def explain_repo_file(repo_id: str, path: str, request: Request, db = Depends(get_db)):
+    tenant_id = request.state.tenant_id
+    
+    repo = db.query(Repository).filter(
+        (Repository.id == repo_id) | (Repository.name == repo_id),
+        Repository.tenant_id == tenant_id
+    ).first()
+    
+    if not repo:
+        raise HTTPException(status_code=404, detail=f"Repository '{repo_id}' not found")
+        
+    content = None
+    if repo.url and repo.url.startswith("https://github.com/"):
+        github_token = request.headers.get("X-GitHub-Token")
+        if not github_token:
+            raise HTTPException(status_code=401, detail="GitHub token required for GitHub repositories")
+            
+        owner, repo_name = extract_github_owner_repo(repo.url)
+        try:
+            content = get_github_file_content(owner, repo_name, path, github_token)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch from GitHub: {str(e)}")
+    else:
+        rm = RepoManager()
+        repo_path = rm.base_dir / tenant_id / repo.name
+        if not repo_path.exists():
+            repo_path = rm.base_dir / repo.name
+            
+        if not repo_path.exists():
+            raise HTTPException(status_code=404, detail="Repository files not found on disk.")
+            
+        try:
+            content = rm.read_file(repo_path, path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read local file: {str(e)}")
+
+    if not content:
+        raise HTTPException(status_code=404, detail="File content is empty or not found")
+
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        system_prompt = (
+            "You are an AI assistant that provides a concise summary of a source code file. "
+            "Explain what this file does in 1-3 sentences maximum. Keep it very brief and to the point. "
+            "Do not use markdown formatting, just plain text."
+        )
+        user_prompt = f"File: {path}\n\nContent:\n{content[:5000]}..." # Limit context to save tokens
+        response = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+        return {"summary": response.content.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")

@@ -12,6 +12,50 @@ import { Skeleton } from "./Skeleton";
 import { TypingIndicator } from "./TypingIndicator";
 import { supabase } from "@/utils/supabase/client";
 import { CodeBlock } from "@/components/CodeBlock";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFileTree, useFileContent } from "@/hooks/useEditor";
+import { queryKeys } from "@/lib/react-query/queryKeys";
+import { FileNode, useEditorStore } from "@/store/editorStore";
+import { useRouter } from "next/navigation";
+import apiClient from "@/utils/apiClient";
+
+function flattenFileTree(node: FileNode, basePath: string = ""): string[] {
+  let paths: string[] = [];
+  if (node.type === 'file') {
+    paths.push(node.path);
+  } else if (node.children) {
+    node.children.forEach(child => {
+      paths.push(...flattenFileTree(child));
+    });
+  }
+  return paths;
+}
+
+function FileMentionPill({ repoId, path, onRemove }: { repoId: string, path: string, onRemove: () => void }) {
+  const { data, isLoading } = useFileContent(repoId, path);
+  
+  return (
+    <div className="relative group flex flex-col gap-1 bg-indigo-500/10 border border-indigo-500/20 p-2 rounded-lg min-w-[200px] max-w-[300px]">
+      <div className="flex items-center gap-2 pr-4">
+        <FileCode2 className="w-4 h-4 text-indigo-400 shrink-0" />
+        <span className="text-xs text-indigo-200 font-mono truncate">{path}</span>
+        <button
+          onClick={onRemove}
+          className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="text-[10px] text-indigo-300/70 leading-tight border-t border-indigo-500/10 pt-1 mt-1">
+        {isLoading ? (
+          <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Fetching file...</span>
+        ) : (
+          <span className="line-clamp-2 text-indigo-200/50">{(data?.content || "").slice(0, 100).replace(/\n/g, " ")}...</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const SUGGESTION_POOL = [
   "Explain the architecture",
@@ -61,8 +105,11 @@ export function ChatArea() {
   const { data: messagesData, fetchNextPage, hasNextPage: hasMoreMessages, isFetching: isMessagesLoading } = useMessages(currentSessionId);
   const messages = messagesData?.pages.flatMap(p => p.items).reverse() || [];
   
+  const activeRepoName = currentSession ? currentSession.repo_id.split('_').slice(1).join('_') : repoName;
+
   const { addMessage, updateLastMessage } = useMessagesCache(currentSessionId);
   const forkSessionMutation = useForkSession();
+  const router = useRouter();
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +119,15 @@ export function ChatArea() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const queryClient = useQueryClient();
+  const { data: fileTree } = useFileTree(activeRepoName);
+  const allFiles = fileTree ? flattenFileTree(fileTree) : [];
+  const filteredFiles = allFiles.filter(f => f.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 10);
 
   const refreshSuggestions = () => {
     const shuffled = [...SUGGESTION_POOL].sort(() => 0.5 - Math.random());
@@ -127,6 +183,39 @@ export function ChatArea() {
       msgText = msgText ? `${msgText}\n\n${markdownFiles}` : markdownFiles;
     }
 
+    const mentionRegex = /@([a-zA-Z0-9_./-]+)/g;
+    const matches = Array.from(msgText.matchAll(mentionRegex)).map(m => m[1]);
+    const uniqueMentions = Array.from(new Set(matches)).filter(path => allFiles.includes(path));
+
+    if (uniqueMentions.length > 0) {
+      const appendedFiles = [];
+      
+      for (const path of uniqueMentions) {
+        const regex = new RegExp(`@${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+        msgText = msgText.replace(regex, `[${path.split('/').pop()}](#file-mention:${path})`);
+        
+        try {
+          const fileData = await queryClient.fetchQuery({
+            queryKey: queryKeys.fileContent(activeRepoName!, path),
+            queryFn: async () => {
+              const res = await apiClient.get(`/repos/${encodeURIComponent(activeRepoName!)}/files/content`, {
+                params: { path }
+              });
+              return res.data;
+            },
+            staleTime: 1000 * 60 * 60,
+          });
+          appendedFiles.push(`\`\`\`file-mention:${path}\n${fileData?.content || "File content not available"}\n\`\`\``);
+        } catch (e) {
+          console.error("Failed to fetch file content for mention:", path, e);
+        }
+      }
+      
+      if (appendedFiles.length > 0) {
+        msgText = msgText ? `${msgText}\n\n${appendedFiles.join('\n\n')}` : appendedFiles.join('\n\n');
+      }
+    }
+
     addMessage({ role: "user", content: msgText });
     setInput("");
     setAttachedImages([]);
@@ -138,7 +227,7 @@ export function ChatArea() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
       const res = await axios.post(`${API_URL}/api/chat`, 
-        { message: msgText, repo_name: repoName, mode, session_id: currentSessionId },
+        { message: msgText, repo_name: activeRepoName, mode, session_id: currentSessionId },
         {
           headers: { "Authorization": `Bearer ${session?.access_token}` },
           responseType: 'stream',
@@ -230,7 +319,7 @@ export function ChatArea() {
               <h2 className="text-xl font-bold">{currentSession.title || 'New Chat'}</h2>
               <span className="px-2 py-1 bg-white/5 rounded-md text-xs text-gray-400 ml-auto border border-white/5 flex items-center gap-1">
                 <Database className="w-3 h-3" />
-                {currentSession.repo_id.split('_').slice(1).join('_') || repoName}
+                {activeRepoName}
               </span>
             </div>
           )}
@@ -265,16 +354,16 @@ export function ChatArea() {
                   <Database className="w-8 h-8 text-blue-400" />
                 </div>
                 <h2 className="text-3xl font-bold mb-3 tracking-tight text-white">
-                  Welcome to {repoName || "AI-RepoMind"}
+                  Welcome to {activeRepoName || "AI-RepoMind"}
                 </h2>
                 <p className="text-gray-400 text-base leading-relaxed mb-10">
-                  {repoName 
+                  {activeRepoName 
                     ? "I can analyze architecture, find bugs, write new features, and explain complex logic using the LangGraph agent loop."
                     : "Please select a repository from the sidebar or click 'Add Repository' to get started."}
                 </p>
               </div>
               
-              {repoName && (
+              {activeRepoName && (
                 <div className="w-full flex flex-wrap justify-center items-center gap-3">
                   {currentSuggestions.map((quickMsg, i) => (
                     <motion.button
@@ -333,6 +422,25 @@ export function ChatArea() {
                 <div className={`prose prose-invert ${msg.role === 'assistant' ? 'max-w-none' : ''}`}>
                   <ReactMarkdown
                     components={{
+                      a: ({ node, ...props }) => {
+                        if (props.href?.startsWith("#file-mention:")) {
+                          const path = props.href.replace("#file-mention:", "");
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                useEditorStore.getState().setActiveFile(path);
+                                router.push('/editor');
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 mx-0.5 rounded-md bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors cursor-pointer border border-indigo-500/30 align-baseline"
+                            >
+                              <FileCode2 className="w-3 h-3" />
+                              {props.children}
+                            </button>
+                          );
+                        }
+                        return <a {...props} className="text-blue-400 hover:underline" />;
+                      },
                       img: ({ node, ...props }) => (
                         <img 
                           {...props} 
@@ -341,14 +449,30 @@ export function ChatArea() {
                         />
                       ),
                       code: ({node, className, children, ...props}) => {
-                        const match = /language-(\w+)/.exec(className || '')
+                        const match = /language-(\w+)/.exec(className || '');
+                        const fileMentionMatch = /language-file-mention:(.+)/.exec(className || '');
+                        
+                        if (fileMentionMatch) {
+                          const path = fileMentionMatch[1];
+                          return (
+                            <button 
+                              type="button"
+                              onClick={() => useEditorStore.getState().setActiveFile(path)}
+                              className="text-indigo-400 hover:text-indigo-300 underline font-mono text-sm flex items-center gap-1 my-2"
+                            >
+                              <FileCode2 className="w-4 h-4" />
+                              {path}
+                            </button>
+                          );
+                        }
+                        
                         return match ? (
                           <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
                         ) : (
                           <code className="bg-black/40 rounded px-1.5 py-0.5 text-pink-300 font-mono text-[13px]" {...props}>
                             {children}
                           </code>
-                        )
+                        );
                       }
                     }}
                   >
@@ -470,19 +594,88 @@ export function ChatArea() {
             </div>
           )}
 
-          <form 
-            onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-colors"
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={repoName ? "Ask your codebase anything..." : "Select a repository to start chatting..."}
-              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400 disabled:opacity-50"
-              disabled={isLoading || !repoName}
-            />
+          <div className="relative">
+            <AnimatePresence>
+              {showMentionMenu && activeRepoName && filteredFiles.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute bottom-full left-0 mb-2 w-80 max-h-64 overflow-y-auto bg-[#1e1e2e] border border-white/10 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1 custom-scrollbar"
+                >
+                  <div className="px-2 py-1.5 text-xs text-gray-400 font-medium">Mention a file</div>
+                  {filteredFiles.map((path, idx) => (
+                    <button
+                      key={path}
+                      type="button"
+                      onMouseEnter={() => setMentionIndex(idx)}
+                      onClick={() => {
+                        setShowMentionMenu(false);
+                        const lastAt = input.lastIndexOf("@");
+                        if (lastAt !== -1) {
+                          setInput(input.substring(0, lastAt) + "@" + path + " ");
+                        }
+                        inputRef.current?.focus();
+                      }}
+                      className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors text-left ${
+                        idx === mentionIndex ? "bg-white/10 text-white" : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <FileCode2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <span className="truncate">{path}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <form 
+              onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+              className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-colors"
+            >
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInput(val);
+                  const lastAt = val.lastIndexOf("@");
+                  if (lastAt !== -1 && (lastAt === 0 || val[lastAt - 1] === " ")) {
+                    setShowMentionMenu(true);
+                    setMentionQuery(val.substring(lastAt + 1));
+                    setMentionIndex(0);
+                  } else {
+                    setShowMentionMenu(false);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (showMentionMenu && filteredFiles.length > 0) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setMentionIndex(prev => Math.min(filteredFiles.length - 1, prev + 1));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setMentionIndex(prev => Math.max(0, prev - 1));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      const path = filteredFiles[mentionIndex];
+                      if (path) {
+                        setShowMentionMenu(false);
+                        const lastAt = input.lastIndexOf("@");
+                        if (lastAt !== -1) {
+                          setInput(input.substring(0, lastAt) + "@" + path + " ");
+                        }
+                      }
+                    } else if (e.key === "Escape") {
+                      setShowMentionMenu(false);
+                    }
+                  }
+                }}
+                placeholder={activeRepoName ? "Ask your codebase anything... Use @ to mention files" : "Select a repository to start chatting..."}
+                className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400 disabled:opacity-50"
+                disabled={isLoading || !activeRepoName}
+              />
             
             <input 
               type="file" 
@@ -558,6 +751,7 @@ export function ChatArea() {
               <Send className="w-5 h-5" />
             </button>
           </form>
+          </div>
           <p className="text-center text-xs text-gray-500 mt-1">
             {mode === "auto" 
               ? "Auto mode intelligently routes your question to Ask or Composer mode."
