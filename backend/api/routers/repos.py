@@ -1,7 +1,7 @@
 import json
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from qdrant_client.models import FilterSelector, Filter, FieldCondition, MatchValue
 from langchain_openai import ChatOpenAI
@@ -20,6 +20,22 @@ class IngestRequest(BaseModel):
     url: str
     token: Optional[str] = None
     branch: Optional[str] = None
+
+class ArchitectureNode(BaseModel):
+    id: str = Field(description="a unique string identifier (e.g. 'frontend', 'backend', 'db')")
+    label: str = Field(description="a short title (e.g. 'React Frontend', 'Postgres DB')")
+    description: str = Field(description="a 1-2 line description of what this node does")
+    icon: str = Field(description='exactly one of these strings matching a Lucide icon: "Monitor", "Server", "Database", "BrainCircuit", "HardDriveDownload", "TerminalSquare", "Globe", "Cloud"')
+    iconBg: str = Field(description='a Tailwind class string for colors, like "bg-blue-500/20 text-blue-400"')
+
+class ArchitectureEdge(BaseModel):
+    id: str = Field(description="a unique string (e.g. 'e-front-back')")
+    source: str = Field(description="the id of the source node")
+    target: str = Field(description="the id of the target node")
+
+class ArchitectureGraph(BaseModel):
+    nodes: List[ArchitectureNode]
+    edges: List[ArchitectureEdge]
 
 @router.get("/repos")
 async def get_repos(request: Request, db = Depends(get_db)):
@@ -327,40 +343,17 @@ async def generate_architecture(repo_id: str, request: Request, db = Depends(get
     sys_msg = SystemMessage(content="You are an expert software architect. Analyze the provided repository configuration files and deduce the high-level architecture.")
     
     human_msg = HumanMessage(content=f"""
-Analyze the following configuration files from a codebase. Generate a high-level architecture diagram represented as a strict JSON object.
-
-The JSON object must have exactly two keys: "nodes" and "edges".
-
-"nodes" is an array of objects, each with:
-- "id": a unique string identifier (e.g. "frontend", "backend", "db")
-- "label": a short title (e.g. "React Frontend", "Postgres DB")
-- "description": a 1-2 line description of what this node does
-- "icon": exactly one of these strings matching a Lucide icon: "Monitor", "Server", "Database", "BrainCircuit", "HardDriveDownload", "TerminalSquare", "Globe", "Cloud"
-- "iconBg": a Tailwind class string for colors, like "bg-blue-500/20 text-blue-400"
-
-"edges" is an array of objects, each with:
-- "id": a unique string (e.g. "e-front-back")
-- "source": the id of the source node
-- "target": the id of the target node
-
-Output ONLY valid JSON. No markdown wrappers.
+Analyze the following configuration files from a codebase. Generate a high-level architecture diagram.
 
 Files:
 {file_contents}
 """)
 
-    response = llm.invoke([sys_msg, human_msg])
-    
-    try:
-        content = response.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        
-        architecture_data = json.loads(content.strip())
-        return architecture_data
-    except Exception as e:
-        print(f"Error parsing architecture JSON: {{e}}")
-        raise HTTPException(status_code=500, detail="Failed to generate architecture diagram")
+    structured_llm = llm.with_structured_output(ArchitectureGraph)
 
+    try:
+        response = structured_llm.invoke([sys_msg, human_msg])
+        return response.model_dump() if hasattr(response, "model_dump") else response.dict()
+    except Exception as e:
+        print(f"Error generating architecture: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate architecture diagram")
