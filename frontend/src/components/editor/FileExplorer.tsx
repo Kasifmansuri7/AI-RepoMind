@@ -11,6 +11,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { FileNode, useEditorStore } from '@/store/editorStore';
+import { useFileTree } from '@/hooks/useEditor';
 
 const getFileIcon = (filename: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -43,7 +44,7 @@ const FileTreeNode = ({
   depth?: number 
 }) => {
   const [isOpen, setIsOpen] = useState(depth === 0);
-  const { activeFile, fetchFileContent } = useEditorStore();
+  const { activeFile, setActiveFile } = useEditorStore();
 
   const isDir = node.type === 'directory';
   const isActive = activeFile === node.path;
@@ -52,7 +53,7 @@ const FileTreeNode = ({
     if (isDir) {
       setIsOpen(!isOpen);
     } else {
-      fetchFileContent(repoId, node.path);
+      setActiveFile(node.path);
     }
   };
 
@@ -107,7 +108,7 @@ const FileTreeNode = ({
 };
 
 export function FileExplorer({ repoId }: { repoId: string }) {
-  const { fileTree, isTreeLoading, error } = useEditorStore();
+  const { data: fileTree, isLoading: isTreeLoading, error } = useFileTree(repoId);
 
   if (isTreeLoading) {
     return (
@@ -120,7 +121,7 @@ export function FileExplorer({ repoId }: { repoId: string }) {
   if (error) {
     return (
       <div className="p-4 text-red-400 text-sm">
-        {error}
+        Failed to load file tree
       </div>
     );
   }

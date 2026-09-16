@@ -16,6 +16,8 @@ import {
   Wand2
 } from "lucide-react";
 import { useChatStore, Repo, ChatSession } from "@/store/chatStore";
+import { useRepos } from "@/hooks/useRepos";
+import { useSessions } from "@/hooks/useSessions";
 import { DeleteRepoModal } from "@/components/DeleteRepoModal";
 import { DeleteChatModal } from "@/components/DeleteChatModal";
 import { ContextRulesModal } from "@/components/ContextRulesModal";
@@ -29,21 +31,13 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const { 
     tenantId,
     session,
-    repos, 
     repoName, 
     setRepoName, 
-    sessions, 
-    fetchRepos, 
-    fetchSessions, 
-    fetchMessages, 
     currentSessionId,
+    setCurrentSessionId,
     logout,
     chatSearchQuery,
     setChatSearchQuery,
-    sessionsPage,
-    hasMoreSessions,
-    isReposLoading,
-    isSessionsLoading,
     startNewChat
   } = useChatStore();
 
@@ -54,19 +48,21 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const [chatFilterRepo, setChatFilterRepo] = useState<string>("all");
   const [selectedRepoForRules, setSelectedRepoForRules] = useState<Repo | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
+  const { data: repos = [], isLoading: isReposLoading } = useRepos();
+  const { 
+    data: sessionsData, 
+    fetchNextPage, 
+    hasNextPage: hasMoreSessions, 
+    isFetching: isSessionsLoading 
+  } = useSessions(tenantId, chatSearchQuery, chatFilterRepo);
+
+  const sessions = sessionsData?.pages.flatMap(p => p.items) || [];
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
   
   const [localSearch, setLocalSearch] = useState(chatSearchQuery);
-
-  useEffect(() => {
-    fetchRepos();
-  }, [fetchRepos]);
-
-  useEffect(() => {
-    fetchSessions(1, chatFilterRepo);
-  }, [fetchSessions, chatSearchQuery, chatFilterRepo]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -78,15 +74,15 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMoreSessions) {
-          fetchSessions(sessionsPage + 1, chatFilterRepo);
+        if (entries[0].isIntersecting && hasMoreSessions && !isSessionsLoading) {
+          fetchNextPage();
         }
       },
       { threshold: 1.0 }
     );
     if (observerRef.current) observer.observe(observerRef.current);
     return () => observer.disconnect();
-  }, [hasMoreSessions, sessionsPage, fetchSessions, chatFilterRepo]);
+  }, [hasMoreSessions, isSessionsLoading, fetchNextPage]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -349,7 +345,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               sessions.map((s) => (
                   <div 
                     key={s.id} 
-                    onClick={() => fetchMessages(s.id)}
+                    onClick={() => setCurrentSessionId(s.id)}
                     className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors group ${
                       currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
                     }`}

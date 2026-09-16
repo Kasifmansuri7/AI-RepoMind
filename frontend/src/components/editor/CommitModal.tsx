@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, GitCommit, Sparkles, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { useGenerateCommitMessage } from '@/hooks/useEditor';
 
 interface CommitModalProps {
   isOpen: boolean;
@@ -9,12 +10,13 @@ interface CommitModalProps {
   onConfirm: (message: string) => void;
   defaultMessage?: string;
   repoId?: string;
+  isCommitting?: boolean;
 }
 
-export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", repoId }: CommitModalProps) {
+export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", repoId, isCommitting }: CommitModalProps) {
   const [commitMessage, setCommitMessage] = useState(defaultMessage);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { generateCommitMessage, isCommitting } = useEditorStore();
+  const { modifiedFiles } = useEditorStore();
+  const generateCommitMessageMutation = useGenerateCommitMessage();
 
   useEffect(() => {
     if (isOpen) {
@@ -24,14 +26,11 @@ export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", r
 
   const handleGenerate = async () => {
     if (!repoId) return;
-    setIsGenerating(true);
     try {
-      const msg = await generateCommitMessage(repoId);
+      const msg = await generateCommitMessageMutation.mutateAsync({ repoId, files: modifiedFiles });
       if (msg) setCommitMessage(msg);
     } catch (e) {
       console.error(e);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -65,10 +64,10 @@ export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", r
                 {repoId && (
                   <button
                     onClick={handleGenerate}
-                    disabled={isGenerating}
+                    disabled={generateCommitMessageMutation.isPending}
                     className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
                   >
-                    {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {generateCommitMessageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                     Generate with AI
                   </button>
                 )}

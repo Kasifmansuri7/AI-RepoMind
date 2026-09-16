@@ -1,28 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { useChatStore } from '@/store/chatStore';
+import { useSessions } from '@/hooks/useSessions';
+import { useRepos } from '@/hooks/useRepos';
 import { FileExplorer } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
 import { SourceControlPanel } from './SourceControlPanel';
 import { FolderGit2, GitBranch } from 'lucide-react';
 
 export function EditorView() {
-  const { currentSessionId, sessions, repos } = useChatStore();
-  const { fetchFileTree, modifiedFiles } = useEditorStore();
+  const { currentSessionId, tenantId } = useChatStore();
+  const { modifiedFiles } = useEditorStore();
   const [activeTab, setActiveTab] = useState<'files' | 'source_control'>('files');
   
+  const { data: sessionsData } = useSessions(tenantId);
+  const sessions = sessionsData?.pages.flatMap(p => p.items) || [];
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const repoId = currentSession?.repo_id;
 
+  const { data: repos = [] } = useRepos();
   const currentRepo = repos.find(r => r.id === repoId || r.name === repoId);
   const isGithubRepo = currentRepo?.url?.startsWith('https://github.com/');
   const modifiedCount = Object.keys(modifiedFiles).length;
-
-  useEffect(() => {
-    if (repoId) {
-      fetchFileTree(repoId);
-    }
-  }, [repoId, fetchFileTree]);
 
   if (!repoId) {
     return (

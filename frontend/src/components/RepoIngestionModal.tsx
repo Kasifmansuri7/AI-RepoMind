@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, GitBranch, Loader2, Server, Ban, FolderGit2, Link, Search } from "lucide-react";
 import apiClient from "@/utils/apiClient";
 import { useChatStore } from "@/store/chatStore";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/react-query/queryKeys";
 
 export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<"github" | "manual">("github");
@@ -22,7 +24,8 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [selectedGithubRepo, setSelectedGithubRepo] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
-  const { fetchRepos, setRepoName, session } = useChatStore();
+  const { setRepoName, session } = useChatStore();
+  const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
@@ -174,7 +177,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
           setStatus(dataStr);
           if (eventType === "success") {
              setStatus("Ingestion complete!");
-             await fetchRepos();
+             await queryClient.invalidateQueries({ queryKey: queryKeys.repos() });
              setRepoName(dataStr); // Automatically select the new repo!
              setTimeout(() => {
                  onClose();

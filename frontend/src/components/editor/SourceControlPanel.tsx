@@ -1,12 +1,14 @@
 import { useEditorStore } from '@/store/editorStore';
-import { useChatStore } from '@/store/chatStore';
+import { useRepos } from '@/hooks/useRepos';
+import { useBulkCommit } from '@/hooks/useEditor';
 import { Undo2, Save, FileCode2 } from 'lucide-react';
 import { useState } from 'react';
 import { CommitModal } from './CommitModal';
 
 export function SourceControlPanel({ repoId }: { repoId: string }) {
-  const { modifiedFiles, revertFile, bulkCommit, setActiveFile } = useEditorStore();
-  const { repos } = useChatStore();
+  const { modifiedFiles, revertFile, setActiveFile, clearModifiedFiles } = useEditorStore();
+  const { data: repos = [] } = useRepos();
+  const bulkCommitMutation = useBulkCommit();
   const [showCommitModal, setShowCommitModal] = useState(false);
   
   const currentRepo = repos.find(r => r.id === repoId || r.name === repoId);
@@ -72,10 +74,17 @@ export function SourceControlPanel({ repoId }: { repoId: string }) {
 
       <CommitModal 
         repoId={repoId}
-        isOpen={showCommitModal} 
+        isOpen={showCommitModal}
+        isCommitting={bulkCommitMutation.isPending}
         onClose={() => setShowCommitModal(false)}
         onConfirm={async (message) => {
-          await bulkCommit(repoId, message);
+          // Prepare the files for bulk commit
+          const filesContent: Record<string, string> = {};
+          for (const [path, diff] of Object.entries(modifiedFiles)) {
+            filesContent[path] = diff.current;
+          }
+          await bulkCommitMutation.mutateAsync({ repoId, message, files: filesContent });
+          clearModifiedFiles();
           setShowCommitModal(false);
         }}
       />

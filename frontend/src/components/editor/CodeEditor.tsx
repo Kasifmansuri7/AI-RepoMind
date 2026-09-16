@@ -1,7 +1,8 @@
 import { useState, SVGProps, useEffect } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { useEditorStore } from '@/store/editorStore';
-import { useChatStore } from '@/store/chatStore';
+import { useFileContent, useSaveFileContent } from '@/hooks/useEditor';
+import { useRepos } from '@/hooks/useRepos';
 import { Save, Copy, Download, Loader2, GitMerge } from 'lucide-react';
 
 
@@ -11,14 +12,22 @@ export function CodeEditor({ repoId }: { repoId: string }) {
     fileContent, 
     originalFileContent,
     setFileContent,
-    saveFileContent,
-    isFileLoading,
-    isSaving,
+    setOriginalFileContent,
     updateModifiedFile,
     modifiedFiles
   } = useEditorStore();
   
-  const { repos } = useChatStore();
+  const { data: fileData, isLoading: isFileLoading } = useFileContent(repoId, activeFile);
+  const saveFileMutation = useSaveFileContent();
+
+  useEffect(() => {
+    if (fileData) {
+      setFileContent(fileData.content);
+      setOriginalFileContent(fileData.content);
+    }
+  }, [fileData, setFileContent, setOriginalFileContent]);
+  
+  const { data: repos = [] } = useRepos();
 
   const isDirty = fileContent !== originalFileContent;
 
@@ -41,9 +50,10 @@ export function CodeEditor({ repoId }: { repoId: string }) {
     }
     
     try {
-      await saveFileContent(repoId, activeFile, fileContent);
+      await saveFileMutation.mutateAsync({ repoId, path: activeFile, content: fileContent });
+      setOriginalFileContent(fileContent);
     } catch (e) {
-      // Error is handled in the store
+      // Error is handled
     }
   };
 
@@ -139,14 +149,14 @@ export function CodeEditor({ repoId }: { repoId: string }) {
           </button>
           <button
             onClick={handleSave}
-            disabled={!isDirty || isSaving}
+            disabled={!isDirty || saveFileMutation.isPending}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors
               ${isDirty 
                 ? 'bg-indigo-600 hover:bg-indigo-500 text-white' 
                 : 'bg-white/10 text-gray-500 cursor-not-allowed'}
             `}
           >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saveFileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {isGithubRepo ? "Stage Changes" : "Save"}
           </button>
         </div>

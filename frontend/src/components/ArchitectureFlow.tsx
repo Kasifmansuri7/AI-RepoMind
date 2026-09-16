@@ -29,7 +29,7 @@ import {
   Code2
 } from 'lucide-react';
 import dagre from 'dagre';
-import apiClient from '@/utils/apiClient';
+import { useRepos, useArchitecture } from "@/hooks/useRepos";
 import { useChatStore } from '@/store/chatStore';
 
 const iconMap: Record<string, React.ElementType> = {
@@ -109,69 +109,60 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
 export function ArchitectureFlow() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [loading, setLoading] = useState(true);
-  const { repoName, repos } = useChatStore();
+  const { tenantId, session, repoName, currentSessionId } = useChatStore();
+  const { data: repos = [] } = useRepos();
+  const activeRepo = repos.find((r: any) => r.name === repoName);
+  const repoId = activeRepo?.id;
 
-  const activeRepo = repos.find(r => r.name === repoName);
+  const { data: architectureData, isLoading, isError } = useArchitecture(repoId);
 
   useEffect(() => {
-    async function fetchArchitecture() {
-      if (!activeRepo) {
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      try {
-        const response = await apiClient.get(`/repos/${activeRepo.id}/architecture`);
-        const { nodes: rawNodes, edges: rawEdges } = response.data;
+    if (!architectureData) return;
 
-        // Map raw nodes to React Flow format
-        const formattedNodes: Node[] = rawNodes.map((n: Record<string, string>) => ({
-          id: n.id,
-          type: 'custom',
-          position: { x: 0, y: 0 },
-          data: {
-            label: n.label,
-            description: n.description,
-            icon: n.icon,
-            iconBg: n.iconBg
-          }
-        }));
+    try {
+      const { nodes: rawNodes, edges: rawEdges } = architectureData;
 
-        // Map raw edges
-        const formattedEdges: Edge[] = rawEdges.map((e: Record<string, string>) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          animated: true,
-          style: { stroke: '#9ca3af', strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }
-        }));
+      // Map raw nodes to React Flow format
+      const formattedNodes: Node[] = rawNodes.map((n: Record<string, string>) => ({
+        id: n.id,
+        type: 'custom',
+        position: { x: 0, y: 0 },
+        data: {
+          label: n.label,
+          description: n.description,
+          icon: n.icon,
+          iconBg: n.iconBg
+        }
+      }));
 
-        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-          formattedNodes,
-          formattedEdges
-        );
+      // Map raw edges
+      const formattedEdges: Edge[] = rawEdges.map((e: Record<string, string>) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        animated: true,
+        style: { stroke: '#9ca3af', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }
+      }));
 
-        setNodes(layoutedNodes);
-        setEdges(layoutedEdges);
-      } catch (error) {
-        console.error("Failed to fetch architecture", error);
-      } finally {
-        setLoading(false);
-      }
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        formattedNodes,
+        formattedEdges
+      );
+
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+    } catch (error) {
+      console.error("Failed to parse architecture", error);
     }
-
-    fetchArchitecture();
-  }, [activeRepo, setNodes, setEdges]);
+  }, [architectureData, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges],
   );
 
-  if (loading) {
+  if (isLoading || (activeRepo && !architectureData && !isError)) {
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -182,7 +173,7 @@ export function ArchitectureFlow() {
     );
   }
 
-  if (!nodes.length) {
+  if (!nodes.length && !isLoading && !isError) {
     return (
       <div className="w-full h-full bg-[#0a0a0a] flex items-center justify-center">
         <p className="text-gray-500 text-sm">No architecture data available for this repository.</p>

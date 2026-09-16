@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useChatStore } from "@/store/chatStore";
+import { useMessages, useMessagesCache } from "@/hooks/useMessages";
+import { useSessions, useForkSession } from "@/hooks/useSessions";
 import { Skeleton } from "./Skeleton";
 import { TypingIndicator } from "./TypingIndicator";
 import { supabase } from "@/utils/supabase/client";
@@ -48,12 +50,19 @@ function CopyMessageButton({ content }: { content: string }) {
 
 export function ChatArea() {
   const { 
-    session, repoName, messages, addMessage, sessions, 
-    currentSessionId, fetchSessions, setCurrentSessionId, 
-    updateLastMessage, fetchMessages, messagesPage, hasMoreMessages,
-    isMessagesLoading, forkChat
+    session, repoName, 
+    currentSessionId, setCurrentSessionId, tenantId
   } = useChatStore();
+  
+  const { data: sessionsData } = useSessions(tenantId);
+  const sessions = sessionsData?.pages.flatMap(p => p.items) || [];
   const currentSession = sessions.find(s => s.id === currentSessionId);
+
+  const { data: messagesData, fetchNextPage, hasNextPage: hasMoreMessages, isFetching: isMessagesLoading } = useMessages(currentSessionId);
+  const messages = messagesData?.pages.flatMap(p => p.items).reverse() || [];
+  
+  const { addMessage, updateLastMessage } = useMessagesCache(currentSessionId);
+  const forkSessionMutation = useForkSession();
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -92,18 +101,17 @@ export function ChatArea() {
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      async (entries) => {
-        if (entries[0].isIntersecting && hasMoreMessages && currentSessionId && !isFetchingMore) {
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreMessages && currentSessionId && !isFetchingMore && !isMessagesLoading) {
           setIsFetchingMore(true);
-          await fetchMessages(currentSessionId, messagesPage + 1);
-          setIsFetchingMore(false);
+          fetchNextPage().finally(() => setIsFetchingMore(false));
         }
       },
       { threshold: 1.0 }
     );
     if (topOfMessagesRef.current) observer.observe(topOfMessagesRef.current);
     return () => observer.disconnect();
-  }, [hasMoreMessages, messagesPage, currentSessionId, isFetchingMore, fetchMessages]);
+  }, [hasMoreMessages, currentSessionId, isFetchingMore, isMessagesLoading, fetchNextPage]);
 
   const sendMessage = async (overrideMsg?: string) => {
     let msgText = overrideMsg || input;
@@ -189,7 +197,6 @@ export function ChatArea() {
                 updateLastMessage(finalContent);
                 if (parsed.session_id && !currentSessionId) {
                   setCurrentSessionId(parsed.session_id);
-                  fetchSessions();
                 }
                 setStatus("");
               } catch {
@@ -352,9 +359,13 @@ export function ChatArea() {
                   <CopyMessageButton content={msg.content} />
                   {msg.id && currentSessionId && (
                     <button 
-                      onClick={() => forkChat(currentSessionId, msg.id!)}
+                      onClick={() => forkSessionMutation.mutate(
+                        { sessionId: currentSessionId, messageId: msg.id! },
+                        { onSuccess: (newId) => setCurrentSessionId(newId) }
+                      )}
+                      disabled={forkSessionMutation.isPending}
                       title="Fork conversation from here"
-                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white"
+                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 text-gray-400 hover:text-white disabled:opacity-50"
                     >
                       <GitBranch className="w-4 h-4" />
                     </button>
