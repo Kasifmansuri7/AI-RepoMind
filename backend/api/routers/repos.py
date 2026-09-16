@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -243,4 +244,123 @@ Output ONLY the markdown content of the {target['filename']} file without any su
         "rules": response.content.strip(),
         "filename": target['filename']
     }
+
+@router.get("/repos/{repo_id:path}/architecture")
+async def generate_architecture(repo_id: str, request: Request, db = Depends(get_db)):
+    tenant_id = request.state.tenant_id
+    
+    repo = db.query(Repository).filter(
+        (Repository.id == repo_id) | (Repository.name == repo_id),
+        Repository.tenant_id == tenant_id
+    ).first()
+    
+    if not repo:
+        raise HTTPException(status_code=404, detail=f"Repository '{repo_id}' not found")
+        
+    actual_repo_id = repo.id
+    q_client = get_qdrant_client()
+    
+    TECH_STACK_FILES = [
+        "package.json", "requirements.txt", "pyproject.toml", 
+        "go.mod", "Cargo.toml", "docker-compose.yml", "tsconfig.json", "pom.xml", "build.gradle",
+        "README.md", "index.html", "app.py", "main.py", "index.js", "app.js", "main.go", "Makefile",
+        "next.config.js", "next.config.ts", "vite.config.ts", "vite.config.js"
+    ]
+    
+    found_files = {}
+    fallback_files = {}
+    
+    if q_client.collection_exists(collection_name=COLLECTION_NAME):
+        offset = None
+        while True:
+            records, next_offset = q_client.scroll(
+                collection_name=COLLECTION_NAME,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                        FieldCondition(key="repo_id", match=MatchValue(value=actual_repo_id))
+                    ]
+                ),
+                with_payload=True,
+                with_vectors=False,
+                limit=100,
+                offset=offset
+            )
+            
+            for record in records:
+                file_path = record.payload.get("file_path", "")
+                filename = file_path.split("/")[-1]
+                
+                if filename in TECH_STACK_FILES:
+                    if file_path not in found_files:
+                        found_files[file_path] = []
+                    found_files[file_path].append((record.payload.get("chunk_index", 0), record.payload.get("content", "")))
+                elif len(fallback_files) < 5 and file_path not in fallback_files:
+                    fallback_files[file_path] = []
+                
+                if file_path in fallback_files:
+                    fallback_files[file_path].append((record.payload.get("chunk_index", 0), record.payload.get("content", "")))
+            
+            offset = next_offset
+            if offset is None:
+                break
+                
+    if not found_files:
+        if fallback_files:
+            found_files = fallback_files
+        else:
+            raise HTTPException(status_code=404, detail="Repository appears to be empty or contains no readable files.")
+        
+    file_contents = ""
+    for path, chunks in found_files.items():
+        chunks.sort(key=lambda x: x[0])
+        content = "\n".join(c[1] for c in chunks)
+        if len(content) > 15000:
+            content = content[:15000] + "\n...[TRUNCATED]"
+        file_contents += f"\n\n--- {path} ---\n{content}"
+        
+    if len(file_contents) > 80000:
+        file_contents = file_contents[:80000] + "\n...[OVERALL TRUNCATED]"
+        
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+    
+    sys_msg = SystemMessage(content="You are an expert software architect. Analyze the provided repository configuration files and deduce the high-level architecture.")
+    
+    human_msg = HumanMessage(content=f"""
+Analyze the following configuration files from a codebase. Generate a high-level architecture diagram represented as a strict JSON object.
+
+The JSON object must have exactly two keys: "nodes" and "edges".
+
+"nodes" is an array of objects, each with:
+- "id": a unique string identifier (e.g. "frontend", "backend", "db")
+- "label": a short title (e.g. "React Frontend", "Postgres DB")
+- "description": a 1-2 line description of what this node does
+- "icon": exactly one of these strings matching a Lucide icon: "Monitor", "Server", "Database", "BrainCircuit", "HardDriveDownload", "TerminalSquare", "Globe", "Cloud"
+- "iconBg": a Tailwind class string for colors, like "bg-blue-500/20 text-blue-400"
+
+"edges" is an array of objects, each with:
+- "id": a unique string (e.g. "e-front-back")
+- "source": the id of the source node
+- "target": the id of the target node
+
+Output ONLY valid JSON. No markdown wrappers.
+
+Files:
+{file_contents}
+""")
+
+    response = llm.invoke([sys_msg, human_msg])
+    
+    try:
+        content = response.content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        
+        architecture_data = json.loads(content.strip())
+        return architecture_data
+    except Exception as e:
+        print(f"Error parsing architecture JSON: {{e}}")
+        raise HTTPException(status_code=500, detail="Failed to generate architecture diagram")
 

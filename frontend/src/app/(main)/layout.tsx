@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useChatStore } from "@/store/chatStore";
 import { Sidebar } from "@/components/Sidebar";
 import { RepoIngestionModal } from "@/components/RepoIngestionModal";
-import { Code2, MessageSquare } from "lucide-react";
+import { Code2, MessageSquare, Network } from "lucide-react";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isAuthLoading, initializeAuth, currentSessionId } = useChatStore();
@@ -95,6 +95,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               >
                 <Code2 className="w-4 h-4" />
                 Editor
+              </Link>
+              <Link
+                href="/architecture"
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  pathname === "/architecture" 
+                    ? "bg-white/10 text-white shadow-sm" 
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Network className="w-4 h-4" />
+                Architecture
               </Link>
             </div>
           </div>
