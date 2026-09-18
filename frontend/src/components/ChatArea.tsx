@@ -531,15 +531,15 @@ export function ChatArea() {
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-20 pointer-events-none">
-        <div className="max-w-4xl mx-auto flex flex-col gap-3 pointer-events-auto">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-12 bg-gradient-to-t from-[var(--background)] via-[var(--background)] via-60% to-transparent pointer-events-none z-10">
+        <div className="max-w-3xl mx-auto flex flex-col gap-2 pointer-events-auto">
           
-          <div className="flex justify-center">
-            <div className="bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/10 flex items-center gap-1 relative">
+          <div className="flex justify-start px-2">
+            <div className="bg-white/5 backdrop-blur-md p-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-sm">
               {[
-                { id: "auto", label: "Auto", icon: Sparkles, color: "text-indigo-400", bg: "bg-indigo-500/20", border: "border-indigo-500/30" },
-                { id: "ask", label: "Ask", icon: MessageSquare, color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/30" },
-                { id: "plan", label: "Composer", icon: Brain, color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500/30" }
+                { id: "auto", label: "Auto", icon: Sparkles, color: "text-gray-300 hover:text-white", bg: "bg-white/10", border: "border-white/10" },
+                { id: "ask", label: "Ask", icon: MessageSquare, color: "text-gray-300 hover:text-white", bg: "bg-white/10", border: "border-white/10" },
+                { id: "plan", label: "Composer", icon: Brain, color: "text-gray-300 hover:text-white", bg: "bg-white/10", border: "border-white/10" }
               ].map((m) => {
                 const Icon = m.icon;
                 const isActive = mode === m.id;
@@ -547,14 +547,14 @@ export function ChatArea() {
                   <button
                     key={m.id}
                     onClick={() => setMode(m.id as "auto" | "ask" | "plan")}
-                    className={`relative flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                      isActive ? m.color : "text-gray-400 hover:text-gray-200"
+                    className={`relative flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
                     }`}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="active-mode-pill"
-                        className={`absolute inset-0 rounded-full border ${m.bg} ${m.border}`}
+                        className={`absolute inset-0 rounded-md border ${m.bg} ${m.border} shadow-sm`}
                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
                       />
                     )}
@@ -631,12 +631,12 @@ export function ChatArea() {
 
             <form 
               onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-              className="relative glass rounded-2xl p-2 flex items-center gap-2 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-colors"
+              className="relative bg-[#1e1e2e]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 flex flex-col gap-2 focus-within:border-indigo-500/50 focus-within:ring-1 focus-within:ring-indigo-500/20 transition-all shadow-2xl"
             >
-              <input
-                ref={inputRef}
-                type="text"
+              <textarea
+                ref={inputRef as any}
                 value={input}
+                rows={Math.min(5, Math.max(1, input.split('\n').length))}
                 onChange={(e) => {
                   const val = e.target.value;
                   setInput(val);
@@ -670,14 +670,21 @@ export function ChatArea() {
                     } else if (e.key === "Escape") {
                       setShowMentionMenu(false);
                     }
+                  } else if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (input.trim() || attachedImages.length > 0 || attachedFiles.length > 0) {
+                      sendMessage();
+                    }
                   }
                 }}
                 placeholder={activeRepoName ? "Ask your codebase anything... Use @ to mention files" : "Select a repository to start chatting..."}
-                className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:outline-none placeholder-gray-400 disabled:opacity-50"
+                className="w-full bg-transparent border-none text-white px-3 py-2 focus:outline-none placeholder-gray-500 disabled:opacity-50 resize-none custom-scrollbar"
                 disabled={isLoading || !activeRepoName}
               />
-            
-            <input 
+              
+              <div className="flex items-center justify-between px-1 pb-1">
+                <div className="flex items-center gap-1">
+                  <input 
               type="file" 
               accept="image/*,text/*,application/json,.py,.tsx,.ts,.jsx,.js,.md,.log,.csv" 
               className="hidden" 
@@ -734,31 +741,26 @@ export function ChatArea() {
               }}
             />
             
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading || isLoading}
-              className="p-3 text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
-            >
-              {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
-            </button>
-            
-            <button
-              type="submit"
-              disabled={(!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isLoading || isUploading}
-              className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl transition-colors text-white"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isLoading}
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-50 transition-colors"
+                  >
+                    {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                  </button>
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={(!input.trim() && attachedImages.length === 0 && attachedFiles.length === 0) || isLoading || isUploading}
+                  className="p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-lg transition-colors text-white shadow-md flex items-center justify-center"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
           </div>
-          <p className="text-center text-xs text-gray-500 mt-1">
-            {mode === "auto" 
-              ? "Auto mode intelligently routes your question to Ask or Composer mode."
-              : mode === "ask" 
-              ? "Ask mode provides fast answers using lightweight LLM chat." 
-              : "Composer mode autonomously reason, search, and generate code."}
-          </p>
         </div>
       </div>
 

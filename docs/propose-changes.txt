@@ -7,5 +7,4 @@
 -- Automated PR Review Mode: Analyze a Pull Request against the codebase to act as an AI reviewer.
 -- Code Sandbox Execution: Run the codebase in a secure browser sandbox to test AI fixes.
 -- Self-Healing Tests: Intercept failing tests and automatically suggest the fix in chat.
--- Hide chat sidebase with slide to left and feature so user can get full immersed code editor
 -- Composer can directly make file changes and it will get reflected automatically. Also we can put redirection to show that change in the code editor with file ref.
