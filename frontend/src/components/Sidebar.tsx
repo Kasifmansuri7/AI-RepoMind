@@ -105,7 +105,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
 
   return (
     <>
-      <div className="w-72 glass border-r border-white/5 flex flex-col z-10 select-none">
+      <div className="w-72 h-full glass border-r border-white/5 flex flex-col z-10 select-none">
         <div className="p-4 border-b border-white/5 flex items-center gap-3">
           <Sparkles className="w-6 h-6 text-blue-400" />
           <span className="font-semibold text-lg tracking-wide text-white">RepoMind</span>

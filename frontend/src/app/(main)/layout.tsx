@@ -6,10 +6,10 @@ import Link from "next/link";
 import { useChatStore } from "@/store/chatStore";
 import { Sidebar } from "@/components/Sidebar";
 import { RepoIngestionModal } from "@/components/RepoIngestionModal";
-import { Code2, MessageSquare, Network } from "lucide-react";
+import { Code2, MessageSquare, Network, PanelLeftClose, PanelLeft } from "lucide-react";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, isAuthLoading, initializeAuth, currentSessionId } = useChatStore();
+  const { isLoggedIn, isAuthLoading, initializeAuth, currentSessionId, isSidebarOpen, toggleSidebar } = useChatStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -67,12 +67,24 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-      <Sidebar onOpenIngest={() => setIsIngestOpen(true)} />
+      <div 
+        className={`transition-all duration-300 ease-in-out shrink-0 h-full overflow-hidden relative ${
+          isSidebarOpen ? 'w-72' : 'w-0'
+        }`}
+      >
+        <div 
+          className={`absolute top-0 left-0 h-full w-72 transition-transform duration-300 ease-in-out ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <Sidebar onOpenIngest={() => setIsIngestOpen(true)} />
+        </div>
+      </div>
       
-      <div className="flex-1 flex flex-col bg-[var(--background)]">
+      <div className="flex-1 flex flex-col bg-[var(--background)] min-w-0">
         {/* Top Navigation Bar */}
         {currentSessionId && (
-          <div className="flex items-center justify-center border-b border-white/5 bg-black/10 py-2">
+          <div className="flex items-center justify-center border-b border-white/5 bg-black/10 py-2 relative">
             <div className="flex bg-white/5 p-1 rounded-lg">
               <Link
                 href="/chat"
@@ -108,6 +120,22 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 Architecture
               </Link>
             </div>
+            {pathname === "/editor" && (
+              <div className="absolute right-4">
+                <button
+                  onClick={toggleSidebar}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                    !isSidebarOpen 
+                      ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30' 
+                      : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+                >
+                  {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+                  {isSidebarOpen ? "Collapse" : "Expand"}
+                </button>
+              </div>
+            )}
           </div>
         )}
         

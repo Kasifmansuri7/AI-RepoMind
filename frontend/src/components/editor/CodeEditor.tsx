@@ -95,7 +95,7 @@ export function CodeEditor({ repoId }: { repoId: string }) {
 
   if (!activeFile) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-500">
+      <div className="h-full flex flex-col items-center justify-center text-gray-500 relative">
         <div className="p-4 bg-white/5 rounded-full mb-4">
           <FileCode2Icon className="w-8 h-8" />
         </div>
