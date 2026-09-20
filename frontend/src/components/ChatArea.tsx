@@ -238,9 +238,15 @@ export function ChatArea() {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      addMessage({ role: "assistant", content: "**Error:** Failed to connect to backend." });
+      let errorMsg = "Failed to connect to backend.";
+      if (error.response?.status === 400) {
+        errorMsg = "Invalid request.";
+      } else if (error.response?.data?.detail) {
+        errorMsg = typeof error.response.data.detail === 'string' ? error.response.data.detail : "Invalid request.";
+      }
+      addMessage({ role: "assistant", content: `**Error:** ${errorMsg}` });
       setStatus("");
     } finally {
       setIsLoading(false);

@@ -1,6 +1,6 @@
 import uuid
 import json
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -12,6 +12,7 @@ from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
 from backend.utils.multimodal import parse_multimodal_content
 import re
+from backend.utils.guard import LLMGuard
 
 router = APIRouter()
 
@@ -241,6 +242,10 @@ from fastapi import BackgroundTasks
 
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks, db = Depends(get_db)):
+    is_unsafe = await LLMGuard().check_prompt_injection(body.message)
+    if is_unsafe:
+        raise HTTPException(status_code=400, detail="Invalid request")
+
     tenant_id = request.state.tenant_id
     github_token = request.headers.get("X-GitHub-Token", "")
     
