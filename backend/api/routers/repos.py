@@ -262,7 +262,7 @@ Output ONLY the markdown content of the {target['filename']} file without any su
     }
 
 @router.get("/repos/{repo_id:path}/architecture")
-async def generate_architecture(repo_id: str, request: Request, db = Depends(get_db)):
+async def generate_architecture(repo_id: str, request: Request, force_refresh: bool = False, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
     
     repo = db.query(Repository).filter(
@@ -272,6 +272,9 @@ async def generate_architecture(repo_id: str, request: Request, db = Depends(get
     
     if not repo:
         raise HTTPException(status_code=404, detail=f"Repository '{repo_id}' not found")
+        
+    if not force_refresh and repo.architecture_graph:
+        return json.loads(repo.architecture_graph)
         
     actual_repo_id = repo.id
     q_client = get_qdrant_client()
@@ -358,7 +361,14 @@ Files:
 
     try:
         response = structured_llm.invoke([sys_msg, human_msg])
-        return response.model_dump() if hasattr(response, "model_dump") else response.dict()
+        graph_dict = response.model_dump() if hasattr(response, "model_dump") else response.dict()
+        
+        # Save to DB
+        repo.architecture_graph = json.dumps(graph_dict)
+        db.commit()
+        
+        return graph_dict
     except Exception as e:
         print(f"Error generating architecture: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to generate architecture diagram")

@@ -20,6 +20,7 @@ class Repository(Base):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
     name = Column(String, nullable=False)
     url = Column(String, nullable=True)
+    architecture_graph = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant", back_populates="repositories")

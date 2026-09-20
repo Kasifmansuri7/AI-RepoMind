@@ -26,10 +26,11 @@ import {
   TerminalSquare,
   Globe,
   Cloud,
-  Code2
+  Code2,
+  RefreshCw
 } from 'lucide-react';
 import dagre from 'dagre';
-import { useRepos, useArchitecture } from "@/hooks/useRepos";
+import { useRepos, useArchitecture, useRegenerateArchitecture } from "@/hooks/useRepos";
 import { useChatStore } from '@/store/chatStore';
 
 const iconMap: Record<string, React.ElementType> = {
@@ -111,6 +112,7 @@ export function ArchitectureFlow({ repoId }: { repoId?: string }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { tenantId, session, repoName, currentSessionId } = useChatStore();
   const { data: repos = [] } = useRepos();
+  const regenerateArchitecture = useRegenerateArchitecture();
   
   // If repoId is not provided as prop, fallback to activeRepo in chat store
   const activeRepo = repos.find((r: any) => r.name === repoName);
@@ -204,6 +206,29 @@ export function ArchitectureFlow({ repoId }: { repoId?: string }) {
           className="bg-gray-900 border border-gray-800 rounded-lg"
         />
         <Background color="#374151" gap={16} size={1} />
+        
+        {/* Regenerate Button Overlay */}
+        {finalRepoId && (
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              onClick={() => regenerateArchitecture.mutate(finalRepoId)}
+              disabled={regenerateArchitecture.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm text-white rounded-lg shadow-lg transition-colors disabled:opacity-50"
+            >
+              {regenerateArchitecture.isPending ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Regenerating...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 text-blue-400" />
+                  <span>Regenerate</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </ReactFlow>
     </div>
   );

@@ -26,6 +26,20 @@ export function useArchitecture(repoId: string | undefined) {
   });
 }
 
+export function useRegenerateArchitecture() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (repoId: string) => {
+      const res = await apiClient.get(`/repos/${encodeURIComponent(repoId)}/architecture?force_refresh=true`);
+      return res.data;
+    },
+    onSuccess: (data, repoId) => {
+      queryClient.setQueryData(queryKeys.architecture(repoId), data);
+    },
+  });
+}
+
 export function useDeleteRepo() {
   const queryClient = useQueryClient();
 
