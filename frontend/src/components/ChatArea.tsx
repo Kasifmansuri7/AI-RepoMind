@@ -14,6 +14,7 @@ import { useFileTree } from "@/hooks/useEditor";
 import { queryKeys } from "@/lib/react-query/queryKeys";
 import { FileNode } from "@/store/editorStore";
 import apiClient from "@/utils/apiClient";
+import { useRouter, usePathname } from "next/navigation";
 
 // Import modular components
 import { ChatWelcomeScreen } from "./chat/ChatWelcomeScreen";
@@ -62,22 +63,26 @@ export function ChatArea() {
   const [mentionQuery, setMentionQuery] = useState("");
 
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
   const { data: fileTree } = useFileTree(activeRepoName);
   const allFiles = fileTree ? flattenFileTree(fileTree) : [];
   const filteredFiles = allFiles.filter(f => f.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 10);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const topOfMessagesRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
-    if (!isFetchingMore) {
+    if (!isFetchingMore && shouldAutoScrollRef.current) {
       endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, status, isFetchingMore]);
 
   useEffect(() => {
     setMode("auto");
+    shouldAutoScrollRef.current = false;
   }, [currentSessionId]);
 
   useEffect(() => {
@@ -147,6 +152,7 @@ export function ChatArea() {
     setAttachedFiles([]);
     setIsLoading(true);
     setStatus("Thinking...");
+    shouldAutoScrollRef.current = true;
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -214,6 +220,9 @@ export function ChatArea() {
                     queryClient.removeQueries({ queryKey: queryKeys.messages('pending') });
                   }
                   setCurrentSessionId(parsed.session_id);
+                  if (pathname === '/chat' || pathname.startsWith('/chat/')) {
+                    router.push(`/chat/${parsed.session_id}`);
+                  }
                   queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
                 }
                 setStatus("");

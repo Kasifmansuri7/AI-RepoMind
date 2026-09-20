@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Sparkles, RefreshCw } from "lucide-react";
+import { Brain, Sparkles, RefreshCw } from "lucide-react";
 
 export const SUGGESTION_POOL = [
   "Explain the architecture",
@@ -42,7 +42,7 @@ export function ChatWelcomeScreen({ activeRepoName, onSendMessage }: ChatWelcome
     >
       <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
         <div className="w-16 h-16 bg-blue-500/10 rounded-2xl border border-blue-500/20 flex items-center justify-center mb-6 shadow-sm">
-          <Database className="w-8 h-8 text-blue-400" />
+          <Brain className="w-8 h-8 text-blue-400" />
         </div>
         <h2 className="text-3xl font-bold mb-3 tracking-tight text-white">
           Welcome to {activeRepoName || "AI-RepoMind"}

@@ -24,6 +24,7 @@ import { ContextRulesModal } from "@/components/ContextRulesModal";
 import { LogoutConfirmModal } from "@/components/LogoutConfirmModal";
 import { Skeleton } from "@/components/Skeleton";
 import { timeAgo } from "@/utils/time";
+import { useRouter, usePathname } from "next/navigation";
 
 
 
@@ -61,6 +62,8 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const chatFilterDropdownRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   
   const [localSearch, setLocalSearch] = useState(chatSearchQuery);
 
@@ -101,10 +104,14 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
   const activeRepo = repos.find((r) => r.name === repoName) || (repos.length > 0 ? repos[0] : null);
 
   useEffect(() => {
-    if (!repoName && activeRepo) {
-      setRepoName(activeRepo.name);
+    if (isReposLoading) return;
+
+    if (repos.length === 0 && repoName !== "") {
+      setRepoName("");
+    } else if (repos.length > 0 && (!repoName || !repos.find(r => r.name === repoName))) {
+      setRepoName(repos[0].name);
     }
-  }, [repoName, activeRepo, setRepoName]);
+  }, [repos, repoName, isReposLoading, setRepoName]);
 
   const avatarUrl = session?.user?.user_metadata?.avatar_url;
   const displayName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || tenantId;
@@ -275,7 +282,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               </button>
 
               <button 
-                onClick={startNewChat} 
+                onClick={() => {
+                  startNewChat();
+                  if (pathname.startsWith('/chat')) {
+                    router.push('/chat');
+                  }
+                }} 
                 title="New Chat"
                 className="p-1 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
               >
@@ -351,7 +363,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               sessions.map((s) => (
                   <div 
                     key={s.id} 
-                    onClick={() => setCurrentSessionId(s.id)}
+                    onClick={() => {
+                      setCurrentSessionId(s.id);
+                      if (pathname === '/chat' || pathname.startsWith('/chat/')) {
+                        router.push(`/chat/${s.id}`);
+                      }
+                    }}
                     className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors group ${
                       currentSessionId === s.id ? "bg-white/10" : "hover:bg-white/5"
                     }`}

@@ -87,9 +87,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <div className="flex items-center justify-center border-b border-white/5 bg-black/10 py-2 relative">
             <div className="flex bg-white/5 p-1 rounded-lg">
               <Link
-                href="/chat"
+                href={currentSessionId ? `/chat/${currentSessionId}` : "/chat"}
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  pathname === "/chat" 
+                  pathname.startsWith("/chat")
                     ? "bg-white/10 text-white shadow-sm" 
                     : "text-gray-400 hover:text-white"
                 }`}
