@@ -284,9 +284,7 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
               <button 
                 onClick={() => {
                   startNewChat();
-                  if (pathname.startsWith('/chat')) {
-                    router.push('/chat');
-                  }
+                  router.push('/chat');
                 }} 
                 title="New Chat"
                 className="p-1 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"

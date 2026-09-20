@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Copy, Check, Terminal, Sparkles, FileCode2, GitBranch } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { CodeBlock } from "@/components/CodeBlock";
 import { useEditorStore } from "@/store/editorStore";
 import { useChatStore } from "@/store/chatStore";
@@ -175,21 +175,31 @@ export function ChatMessageItem({
             </ReactMarkdown>
           </div>
         </div>
-        {!(isLoading && idx === totalMessages - 1 && msg.role === "assistant") && (
-          <div className={`flex items-center gap-1 transition-opacity ${msg.role === "user" ? "justify-end" : "justify-start"} px-1 mt-1`}>
-            <CopyMessageButton content={msg.content} />
-            {msg.id && currentSessionId && (
-              <button 
-                onClick={() => onForkSession(msg.id!)}
-                disabled={isForking}
-                title="Fork conversation from here"
-                className="p-1 hover:bg-white/10 rounded-md text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
-              >
-                <GitBranch className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+        <AnimatePresence>
+          {!(isLoading && idx === totalMessages - 1 && msg.role === "assistant") && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0, y: -5 }}
+              animate={{ opacity: 1, height: "auto", y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -5 }}
+              transition={{ duration: 0.2 }}
+              className={`flex items-center gap-1 overflow-hidden ${msg.role === "user" ? "justify-end" : "justify-start"} px-1 mt-1`}
+            >
+              <CopyMessageButton content={msg.content} />
+              {currentSessionId && (
+                <button 
+                  onClick={() => msg.id && onForkSession(msg.id)}
+                  disabled={isForking || !msg.id}
+                  title="Fork conversation from here"
+                  className={`p-1 hover:bg-white/10 rounded-md text-gray-400 transition-all duration-300 ${
+                    !msg.id ? 'opacity-0 cursor-default' : 'hover:text-white disabled:opacity-50'
+                  }`}
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       {msg.role === "user" && (
         <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-white/5 text-gray-300 border border-white/10 mt-1">

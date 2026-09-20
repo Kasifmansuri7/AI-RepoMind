@@ -11,10 +11,10 @@ export default function ChatSessionPage({ params }: { params: Promise<{ chatId: 
   const currentSessionId = useChatStore((state) => state.currentSessionId);
 
   useEffect(() => {
-    if (chatId && chatId !== currentSessionId) {
+    if (chatId && chatId !== useChatStore.getState().currentSessionId) {
       setCurrentSessionId(chatId);
     }
-  }, [chatId, currentSessionId, setCurrentSessionId]);
+  }, [chatId, setCurrentSessionId]);
 
   return <ChatArea />;
 }

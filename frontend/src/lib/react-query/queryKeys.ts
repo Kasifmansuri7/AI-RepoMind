@@ -8,4 +8,5 @@ export const queryKeys = {
   fileContent: (repoId: string, path: string) => 
     ["fileContent", repoId, path] as const,
   architecture: (repoId: string) => ["architecture", repoId] as const,
+  suggestions: (repoId: string) => ["suggestions", repoId] as const,
 };

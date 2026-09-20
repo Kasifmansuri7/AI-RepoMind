@@ -37,6 +37,9 @@ class ArchitectureGraph(BaseModel):
     nodes: List[ArchitectureNode]
     edges: List[ArchitectureEdge]
 
+class RepoSuggestions(BaseModel):
+    suggestions: List[str] = Field(description="Exactly 4 tailored suggestions/questions for this repository.", min_length=4, max_length=4)
+
 @router.get("/repos")
 async def get_repos(request: Request, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
@@ -372,3 +375,56 @@ Files:
         print(f"Error generating architecture: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to generate architecture diagram")
+
+@router.get("/repos/{repo_id:path}/suggestions")
+async def get_suggestions(repo_id: str, request: Request, force_refresh: bool = False, db = Depends(get_db)):
+    tenant_id = request.state.tenant_id
+    
+    repo = db.query(Repository).filter(
+        (Repository.id == repo_id) | (Repository.name == repo_id),
+        Repository.tenant_id == tenant_id
+    ).first()
+    
+    if not repo:
+        raise HTTPException(status_code=404, detail=f"Repository '{repo_id}' not found")
+        
+    if not force_refresh and repo.suggestions:
+        return json.loads(repo.suggestions)
+        
+    fallback = [
+        "Explain the architecture",
+        "How do I get started with this repo?",
+        "Find potential bugs or edge cases",
+        "Suggest areas for refactoring"
+    ]
+        
+    if not repo.architecture_graph:
+        return {"suggestions": fallback}
+        
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+    
+    sys_msg = SystemMessage(content="""You are an AI coding assistant helping a user explore a code repository.
+Based on the provided architecture graph of the repository, generate exactly 4 dynamic, highly contextual prompt suggestions that the user could click to ask you.
+CRITICAL RULES:
+1. Make the suggestions relevant to the specific components found in the architecture graph.
+2. If there is NO database mentioned in the graph, DO NOT suggest anything about databases or schemas.
+3. If it's a frontend-only app, suggest things about state management, UI components, etc.
+4. Keep each suggestion concise (max 8 words).""")
+    
+    human_msg = HumanMessage(content=f"Architecture Graph:\n{repo.architecture_graph}")
+    
+    structured_llm = llm.with_structured_output(RepoSuggestions)
+    
+    try:
+        response = structured_llm.invoke([sys_msg, human_msg])
+        suggestions_list = response.suggestions if hasattr(response, "suggestions") else response.get("suggestions", fallback)
+        
+        # Save to DB
+        repo.suggestions = json.dumps({"suggestions": suggestions_list})
+        db.commit()
+        
+        return {"suggestions": suggestions_list}
+    except Exception as e:
+        print(f"Error generating suggestions: {e}")
+        db.rollback()
+        return {"suggestions": fallback}

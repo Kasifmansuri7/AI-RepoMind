@@ -76,9 +76,9 @@ export function ChatArea() {
 
   useEffect(() => {
     if (!isFetchingMore && shouldAutoScrollRef.current) {
-      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+      endOfMessagesRef.current?.scrollIntoView({ behavior: isLoading ? "auto" : "smooth" });
     }
-  }, [messages, status, isFetchingMore]);
+  }, [messages, status, isFetchingMore, isLoading]);
 
   useEffect(() => {
     setMode("auto");
@@ -196,12 +196,39 @@ export function ChatArea() {
               setStatus("");
               continue;
             }
-            
-            if (line.includes('"token"')) {
+                        if (line.includes('"session_created"')) {
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.session_id && !currentSessionId) {
+                  const pendingData = queryClient.getQueryData(queryKeys.messages('pending'));
+                  if (pendingData) {
+                    queryClient.setQueryData(queryKeys.messages(parsed.session_id), pendingData);
+                    queryClient.removeQueries({ queryKey: queryKeys.messages('pending') });
+                  }
+                  setCurrentSessionId(parsed.session_id);
+                  if (pathname === '/chat' || pathname.startsWith('/chat/')) {
+                    router.push(`/chat/${parsed.session_id}`);
+                  }
+                  queryClient.setQueryData(queryKeys.sessionsBase(), (old: any) => {
+                    if (!old) return old;
+                    const newPages = [...old.pages];
+                    if (newPages.length > 0) {
+                      newPages[0] = {
+                        ...newPages[0],
+                        items: [{ id: parsed.session_id, title: parsed.title || "New Chat", repo_id: "", created_at: new Date().toISOString() }, ...newPages[0].items]
+                      };
+                    }
+                    return { ...old, pages: newPages };
+                  });
+                  queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
+                }
+              } catch {}
+            } else if (line.includes('"token"')) {
               try {
                 const parsed = JSON.parse(dataStr);
                 finalContent += parsed.token;
                 updateLastMessage(finalContent);
+                setStatus("");
               } catch {}
             } else if (line.includes('"mode"')) {
               try {
@@ -323,25 +350,28 @@ export function ChatArea() {
             );
           })}
 
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {status && (
               <motion.div
                 initial={{ opacity: 0, height: 0, y: 10 }}
                 animate={{ opacity: 1, height: "auto", y: 0 }}
-                exit={{ opacity: 0, height: 0, scale: 0.95 }}
-                className="flex items-center gap-3 text-indigo-400 p-4"
+                exit={{ opacity: 0, height: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="overflow-hidden"
               >
-                {status === "Thinking..." ? (
-                  <>
-                    <TypingIndicator />
-                    <span className="text-sm font-medium ml-2">{status}</span>
-                  </>
-                ) : (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm font-medium">{status}</span>
-                  </>
-                )}
+                <div className="flex items-center gap-3 text-indigo-400 p-4">
+                  {status === "Thinking..." ? (
+                    <>
+                      <TypingIndicator />
+                      <span className="text-sm font-medium ml-2">{status}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-medium">{status}</span>
+                    </>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

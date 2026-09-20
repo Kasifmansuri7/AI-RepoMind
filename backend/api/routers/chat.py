@@ -264,6 +264,9 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             
     async def event_generator():
         try:
+            if session:
+                yield {"event": "session_created", "data": json.dumps({"session_id": session.id, "title": session.title})}
+                
             history_msgs = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
             
             # Limit history to the last 6 messages to save tokens if we have a summary strategy

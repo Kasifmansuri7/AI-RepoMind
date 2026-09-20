@@ -21,6 +21,7 @@ class Repository(Base):
     name = Column(String, nullable=False)
     url = Column(String, nullable=True)
     architecture_graph = Column(String, nullable=True)
+    suggestions = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant", back_populates="repositories")
