@@ -207,6 +207,9 @@ export function ChatArea() {
               try {
                 const parsed = JSON.parse(dataStr);
                 setMode(parsed.mode);
+                if (parsed.mode === 'architecture') {
+                  router.push(`/architecture/${encodeURIComponent(activeRepoName!)}`);
+                }
               } catch {}
             } else if (line.includes('"content"')) {
               try {

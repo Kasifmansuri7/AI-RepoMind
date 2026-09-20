@@ -42,12 +42,12 @@ async def determine_chat_mode(message: str) -> str:
     try:
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         messages = [
-            SystemMessage(content="You are an intent classifier for a coding assistant. Return ONLY the word 'ask' or 'plan' based on the user's message. Reply 'ask' for simple questions, explanations, asking for how things work, or finding bugs. Reply 'plan' for complex tasks requiring writing new code, refactoring, modifying files, creating features, or deep architectural analysis. Reply 'ask' if you are unsure."),
+            SystemMessage(content="You are an intent classifier for a coding assistant. Return ONLY the word 'ask', 'plan', or 'architecture' based on the user's message. Reply 'architecture' if the user asks to explain the overall architecture, system design, or show the architecture. Reply 'ask' for simple questions, explanations of specific code, asking for how things work, or finding bugs. Reply 'plan' for complex tasks requiring writing new code, refactoring, modifying files, creating features. Reply 'ask' if you are unsure."),
             HumanMessage(content=message)
         ]
         response = await llm.ainvoke(messages)
         mode = response.content.strip().lower()
-        if mode in ["ask", "plan"]:
+        if mode in ["ask", "plan", "architecture"]:
             return mode
         return "ask"
     except Exception as e:
@@ -63,13 +63,18 @@ def ensure_tenant(db, tenant_id: str):
     return tenant
 
 def get_or_create_session(db, session_id: Optional[str], tenant_id: str, repo_name: str, initial_message: str) -> str:
-    if not session_id:
+    if session_id:
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if session:
+            return session_id
+    else:
         session_id = str(uuid.uuid4())
-        repo_id = f"{tenant_id}_{repo_name}"
-        title = generate_chat_title(initial_message)
-        session = ChatSession(id=session_id, tenant_id=tenant_id, repo_id=repo_id, title=title)
-        db.add(session)
-        db.commit()
+        
+    repo_id = f"{tenant_id}_{repo_name}"
+    title = generate_chat_title(initial_message)
+    session = ChatSession(id=session_id, tenant_id=tenant_id, repo_id=repo_id, title=title)
+    db.add(session)
+    db.commit()
     return session_id
 
 def save_message(db, session_id: str, role: str, content: str) -> Message:
@@ -270,6 +275,10 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             if actual_mode == "ask":
                 async for event in stream_ask_mode(body, tenant_id, recent_msgs, summary_text, result_ref):
                     yield event
+            elif actual_mode == "architecture":
+                msg = "Navigating to Architecture view..."
+                yield {"event": "token", "data": json.dumps({"token": msg})}
+                result_ref["final_answer"] = msg
             else:
                 formatted_history = "\n".join([f"{m.role}: {m.content}" for m in recent_msgs[:-1]])
                 async for event in stream_plan_mode(body, tenant_id, github_token, formatted_history, summary_text, result_ref):

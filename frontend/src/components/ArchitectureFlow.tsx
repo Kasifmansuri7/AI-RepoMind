@@ -106,15 +106,17 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
   return { nodes: newNodes, edges };
 };
 
-export function ArchitectureFlow() {
+export function ArchitectureFlow({ repoId }: { repoId?: string }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { tenantId, session, repoName, currentSessionId } = useChatStore();
   const { data: repos = [] } = useRepos();
+  
+  // If repoId is not provided as prop, fallback to activeRepo in chat store
   const activeRepo = repos.find((r: any) => r.name === repoName);
-  const repoId = activeRepo?.id;
+  const finalRepoId = repoId || activeRepo?.id;
 
-  const { data: architectureData, isLoading, isError } = useArchitecture(repoId);
+  const { data: architectureData, isLoading, isError } = useArchitecture(finalRepoId);
 
   useEffect(() => {
     if (!architectureData) return;

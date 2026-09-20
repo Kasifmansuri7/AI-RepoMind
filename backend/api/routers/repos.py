@@ -338,12 +338,17 @@ async def generate_architecture(repo_id: str, request: Request, db = Depends(get
     if len(file_contents) > 80000:
         file_contents = file_contents[:80000] + "\n...[OVERALL TRUNCATED]"
         
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
     
-    sys_msg = SystemMessage(content="You are an expert software architect. Analyze the provided repository configuration files and deduce the high-level architecture.")
+    sys_msg = SystemMessage(content="""You are an expert software architect. Analyze the provided repository configuration files and deduce the high-level architecture. 
+CRITICAL RULES:
+1. ONLY include components that are EXPLICITLY mentioned in the provided files.
+2. If this is a frontend-only application, DO NOT hallucinate backend servers, databases, AWS, Vercel, etc.
+3. However, your graph MUST contain a minimum of 3 nodes to be visually meaningful. 
+4. To achieve this for a frontend-only app, break down the frontend architecture into logical client-side layers based on the dependencies (e.g., "UI Components (React)", "State Management (Zustand/Redux)", "Client Routing (Next.js/React Router)", "Styling (Tailwind/CSS)").""")
     
     human_msg = HumanMessage(content=f"""
-Analyze the following configuration files from a codebase. Generate a high-level architecture diagram.
+Analyze the following configuration files from a codebase. Generate a high-level architecture diagram based STRICTLY and ONLY on the evidence in these files. Do not guess or assume any missing pieces.
 
 Files:
 {file_contents}
