@@ -1,7 +1,4 @@
--- What if user dont wanna clone it from somewhere? he has repo on other machine or cloud etc
 -- How to protect it from prompt injection?
--- It can generate sources files like instruction, rules, skill for the repo to download
--- If composer mode will give new code then how it will be useful to the user?
 
 -- NEW PROPOSED FEATURES:
 -- Automated PR Review Mode: Analyze a Pull Request against the codebase to act as an AI reviewer.

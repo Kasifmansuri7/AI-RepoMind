@@ -62,10 +62,8 @@ async def get_chat_messages(
     
     # Order by DESC to get newest messages first for pagination
     messages = query.order_by(Message.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
-    
-    # Reverse to send them in chronological order to the frontend
-    messages.reverse()
-    
+    # Return them in descending order (newest first) so frontend infinite scroll cache handles them easily
+
     items = [{"id": m.id, "role": m.role, "content": m.content, "created_at": str(m.created_at)} for m in messages]
     
     return {

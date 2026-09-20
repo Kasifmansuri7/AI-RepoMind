@@ -37,7 +37,7 @@ export function useDeleteSession() {
       return sessionId;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.sessions() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
     },
   });
 }

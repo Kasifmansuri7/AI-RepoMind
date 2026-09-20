@@ -5,12 +5,13 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from backend.db.postgres import get_db
-from backend.db.models import Tenant, ChatSession, Message
+from backend.db.models import Tenant, ChatSession, Message, Repository
 from backend.agents.graph import agent_graph
 from backend.rag.search import CodeSearcher
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
 from backend.utils.multimodal import parse_multimodal_content
+import re
 
 router = APIRouter()
 
@@ -155,8 +156,8 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
         f"You are AI-RepoMind, a helpful codebase assistant. The active repository is '{body.repo_name}'. "
         "Provide a fast, concise answer based on the provided codebase context. "
         "If the user asks a high-level question (e.g., 'Explain the architecture') and the codebase context is empty or limited, DO NOT give a generic refusal. Instead, explain whatever you can infer, and suggest they use **Composer mode** for a deep codebase analysis. "
-        "IMPORTANT: You MUST ONLY respond to questions related to the codebase, programming, or technical topics. Do not answer general knowledge questions. "
-        "When greeting the user, explicitly mention the repository name. "
+        "IMPORTANT: You MUST ONLY respond to questions related to the codebase, programming, or technical topics. However, you MAY respond to basic pleasantries and greetings (e.g., 'how are you', 'hello') naturally and politely. "
+        "When greeting the user, explicitly mention the repository name and ask how you can help them with it today. "
     )
     if summary_text:
         system_prompt += f"\n\nPrevious Conversation Summary:\n{summary_text}"
@@ -180,7 +181,7 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
             
     result_ref["final_answer"] = final_answer
 
-async def stream_plan_mode(body: ChatRequest, tenant_id: str, formatted_history: str, summary_text: str, result_ref: dict):
+async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str, formatted_history: str, summary_text: str, result_ref: dict):
     if summary_text:
         formatted_history = f"Previous Conversation Summary:\n{summary_text}\n\nRecent Messages:\n{formatted_history}"
         
@@ -188,33 +189,47 @@ async def stream_plan_mode(body: ChatRequest, tenant_id: str, formatted_history:
         "task": body.message,
         "tenant_id": tenant_id,
         "repo_name": body.repo_name,
+        "github_token": github_token,
         "chat_history": formatted_history,
         "revision_number": 0,
         "max_revisions": 3
     }
     
     final_answer = ""
-    async for chunk in agent_graph.astream(initial_state):
-        for node, state in chunk.items():
-            if node == "planner":
+    async for event in agent_graph.astream_events(initial_state, version="v1"):
+        kind = event["event"]
+        name = event.get("name", "")
+        
+        if kind == "on_chat_model_stream" and name == "coder_llm":
+            chunk_content = event["data"]["chunk"].content
+            if chunk_content:
+                final_answer += chunk_content
+                yield {"event": "token", "data": json.dumps({"token": chunk_content})}
+                
+        elif kind == "on_chain_start" and event.get("tags") and "graph" not in name:
+            if name == "planner":
                 yield {"event": "status", "data": "Planning solution and searching codebase..."}
-            elif node == "search":
+            elif name == "search":
                 yield {"event": "status", "data": "Analyzing retrieved code snippets..."}
-            elif node == "coder":
+            elif name == "coder":
                 yield {"event": "status", "data": "Drafting code..."}
-            elif node == "reviewer":
-                action = state.get('review_action')
+            elif name == "reviewer":
+                yield {"event": "status", "data": "Reviewing drafted code..."}
+                
+        elif kind == "on_chain_end" and name == "reviewer":
+            # The state output of reviewer is in event["data"]["output"]
+            try:
+                state_update = event["data"]["output"]
+                action = state_update.get("review_action")
                 if action == "approve":
                     yield {"event": "status", "data": "Review passed! Sending final response..."}
                 elif action == "replan":
                     yield {"event": "status", "data": "Missing context. Rethinking search strategy..."}
                 else:
                     yield {"event": "status", "data": "Found issues in draft. Rewriting code..."}
+            except Exception:
+                pass
                 
-        node_name = list(chunk.keys())[0]
-        if "draft_code" in chunk[node_name]:
-            final_answer = chunk[node_name]["draft_code"]
-            
     result_ref["final_answer"] = final_answer
 
 from fastapi import BackgroundTasks
@@ -222,6 +237,7 @@ from fastapi import BackgroundTasks
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks, db = Depends(get_db)):
     tenant_id = request.state.tenant_id
+    github_token = request.headers.get("X-GitHub-Token", "")
     
     ensure_tenant(db, tenant_id)
     session_id = get_or_create_session(db, body.session_id, tenant_id, body.repo_name, body.message)
@@ -256,7 +272,7 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
                     yield event
             else:
                 formatted_history = "\n".join([f"{m.role}: {m.content}" for m in recent_msgs[:-1]])
-                async for event in stream_plan_mode(body, tenant_id, formatted_history, summary_text, result_ref):
+                async for event in stream_plan_mode(body, tenant_id, github_token, formatted_history, summary_text, result_ref):
                     yield event
                     
             final_answer = result_ref["final_answer"]

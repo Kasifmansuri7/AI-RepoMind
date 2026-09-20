@@ -16,6 +16,7 @@ interface ChatState {
   currentSessionId: string | null;
   chatSearchQuery: string;
   isSidebarOpen: boolean;
+  mode: "auto" | "ask" | "plan";
   
   initializeAuth: () => void;
   logout: () => Promise<void>;
@@ -25,6 +26,7 @@ interface ChatState {
   setChatSearchQuery: (query: string) => void;
   startNewChat: () => void;
   toggleSidebar: () => void;
+  setMode: (mode: "auto" | "ask" | "plan") => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -38,6 +40,7 @@ export const useChatStore = create<ChatState>()(
       currentSessionId: null,
       chatSearchQuery: "",
       isSidebarOpen: true,
+      mode: "auto",
       
       initializeAuth: () => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -73,10 +76,11 @@ export const useChatStore = create<ChatState>()(
         currentSessionId: null 
       }),
       toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+      setMode: (mode) => set({ mode }),
     }),
     {
       name: 'repomind-storage', 
-      partialize: (state) => ({ repoName: state.repoName, currentSessionId: state.currentSessionId, isSidebarOpen: state.isSidebarOpen }),
+      partialize: (state) => ({ repoName: state.repoName, currentSessionId: state.currentSessionId, isSidebarOpen: state.isSidebarOpen, mode: state.mode }),
     }
   )
 );

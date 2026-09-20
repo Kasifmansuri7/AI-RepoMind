@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Copy, Download, Check, Wand2, Loader2, AlertCircle } from "lucide-react";
 import apiClient from "@/utils/apiClient";
@@ -14,12 +15,17 @@ type ContextRulesModalProps = {
 };
 
 export function ContextRulesModal({ isOpen, onClose, repoId, repoName }: ContextRulesModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [rules, setRules] = useState<string | null>(null);
   const [filename, setFilename] = useState<string>(".cursorrules");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<"cursor" | "windsurf" | "copilot" | "generic" | "antigravity">("cursor");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -74,7 +80,9 @@ export function ContextRulesModal({ isOpen, onClose, repoId, repoName }: Context
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -205,6 +213,7 @@ export function ContextRulesModal({ isOpen, onClose, repoId, repoName }: Context
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

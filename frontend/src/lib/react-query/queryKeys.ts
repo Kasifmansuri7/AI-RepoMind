@@ -1,5 +1,6 @@
 export const queryKeys = {
   repos: () => ["repos"] as const,
+  sessionsBase: () => ["sessions"] as const,
   sessions: (search?: string, repoFilter?: string) => 
     ["sessions", search, repoFilter] as const,
   messages: (sessionId: string) => ["messages", sessionId] as const,

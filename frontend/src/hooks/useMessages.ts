@@ -10,18 +10,20 @@ interface MessagesResponse {
 }
 
 export function useMessages(sessionId: string | null) {
+  const activeSessionId = sessionId || 'pending';
   return useInfiniteQuery<MessagesResponse>({
-    queryKey: queryKeys.messages(sessionId!),
+    queryKey: queryKeys.messages(activeSessionId),
     queryFn: async ({ pageParam = 1 }) => {
+      if (activeSessionId === 'pending') return { items: [], has_more: false, total: 0 };
       const params = new URLSearchParams({ page: String(pageParam), limit: "50" });
-      const res = await apiClient.get(`/chats/${sessionId}?${params.toString()}`);
+      const res = await apiClient.get(`/chats/${activeSessionId}?${params.toString()}`);
       return res.data;
     },
     getNextPageParam: (lastPage, allPages) => {
-      return lastPage.has_more ? allPages.length + 1 : undefined;
+      return lastPage?.has_more ? allPages.length + 1 : undefined;
     },
     initialPageParam: 1,
-    enabled: !!sessionId,
+    enabled: true, // Always enabled so we can use the cache even for pending
   });
 }
 
@@ -29,17 +31,19 @@ export function useMessages(sessionId: string | null) {
 export function useMessagesCache(sessionId: string | null) {
   const queryClient = useQueryClient();
 
+  const activeSessionId = sessionId || 'pending';
+
   const addMessage = (message: Message) => {
-    if (!sessionId) return;
-    
-    queryClient.setQueryData(queryKeys.messages(sessionId), (oldData: any) => {
-      if (!oldData) return oldData;
+    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: any) => {
+      if (!oldData || !oldData.pages) {
+        return { pages: [{ items: [message], has_more: false, total: 1 }], pageParams: [1] };
+      }
       
       const newPages = [...oldData.pages];
       if (newPages.length > 0) {
         newPages[0] = {
           ...newPages[0],
-          items: [message, ...newPages[0].items]
+          items: [message, ...(newPages[0].items || [])]
         };
       }
       return { ...oldData, pages: newPages };
@@ -47,13 +51,11 @@ export function useMessagesCache(sessionId: string | null) {
   };
 
   const updateLastMessage = (content: string) => {
-    if (!sessionId) return;
-    
-    queryClient.setQueryData(queryKeys.messages(sessionId), (oldData: any) => {
-      if (!oldData) return oldData;
+    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: any) => {
+      if (!oldData || !oldData.pages) return oldData;
       
       const newPages = [...oldData.pages];
-      if (newPages.length > 0 && newPages[0].items.length > 0) {
+      if (newPages.length > 0 && newPages[0].items?.length > 0) {
         const updatedItems = [...newPages[0].items];
         updatedItems[0] = { ...updatedItems[0], content };
         newPages[0] = { ...newPages[0], items: updatedItems };

@@ -100,6 +100,12 @@ export function Sidebar({ onOpenIngest }: { onOpenIngest: () => void }) {
 
   const activeRepo = repos.find((r) => r.name === repoName) || (repos.length > 0 ? repos[0] : null);
 
+  useEffect(() => {
+    if (!repoName && activeRepo) {
+      setRepoName(activeRepo.name);
+    }
+  }, [repoName, activeRepo, setRepoName]);
+
   const avatarUrl = session?.user?.user_metadata?.avatar_url;
   const displayName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || tenantId;
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Trash2, X, Loader2 } from "lucide-react";
-import { useChatStore, Repo } from "@/store/chatStore";
-import { useDeleteRepo, useRepos } from "@/hooks/useRepos";
+import { Repo, useChatStore } from "@/store/chatStore";
+import { useDeleteRepo } from "@/hooks/useRepos";
 
 interface DeleteRepoModalProps {
   isOpen: boolean;
@@ -13,33 +14,37 @@ interface DeleteRepoModalProps {
 }
 
 export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps) {
-  const { repoName, setRepoName, setCurrentSessionId } = useChatStore();
-  const { data: repos = [] } = useRepos();
+  const { tenantId, repoName, setRepoName, startNewChat } = useChatStore();
   const deleteRepoMutation = useDeleteRepo();
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleDelete = async () => {
     if (!repo) return;
     setError(null);
-
     try {
       await deleteRepoMutation.mutateAsync(repo.id);
       
-      if (repo.name === repoName) {
-        const remainingRepos = repos.filter(r => r.id !== repo.id);
-        const nextRepo = remainingRepos.length > 0 ? remainingRepos[0].name : "";
-        setRepoName(nextRepo);
-        setCurrentSessionId(null);
+      // If deleted active repo, clear it
+      if (repoName === repo.name) {
+        setRepoName("");
+        startNewChat();
       }
       
       onClose();
     } catch (err: unknown) {
       console.error(err);
-      setError("Failed to delete repository. Please check server logs and try again.");
+      setError("Failed to delete repository. Please try again.");
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && repo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
@@ -119,6 +124,7 @@ export function DeleteRepoModal({ isOpen, repo, onClose }: DeleteRepoModalProps)
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

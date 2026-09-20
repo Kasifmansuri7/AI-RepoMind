@@ -66,22 +66,26 @@ def search_node(state: AgentState):
         return {"context": f"Search failed: {e}"}
 
 # 3. CODER
-def coder_node(state: AgentState):
+async def coder_node(state: AgentState):
     print("--- CODER ---")
     system_prompt = (
         "You are an expert developer. Write the code or explanation to fulfill the user's task. "
         "Use the provided codebase context and the architect's plan. "
-        "If you are modifying code, output the full updated file or snippet."
+        "If you are modifying or creating a file, you MUST output the full updated file content using the following markdown format:\n"
+        "```file-change:path/to/file.ext\n"
+        "<full_file_content_here>\n"
+        "```\n"
+        "Ensure you include the ENTIRE file content in the block, as it will overwrite the file. Do not omit existing code."
     )
     
     user_content = f"Chat History:\n{state.get('chat_history', '')}\n\nCurrent Task: {state['task']}\n\nPlan: {state['plan']}\n\nContext:\n{state['context']}"
     if state.get("review_feedback"):
         user_content += f"\n\nReviewer Feedback from previous attempt (Fix these issues):\n{state['review_feedback']}"
         
-    response = llm.invoke([
+    response = await llm.ainvoke([
         SystemMessage(content=system_prompt),
         HumanMessage(content=parse_multimodal_content(user_content))
-    ])
+    ], config={"run_name": "coder_llm"})
     
     return {"draft_code": response.content}
 

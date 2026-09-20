@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Trash2, X, Loader2 } from "lucide-react";
 import { useChatStore, ChatSession } from "@/store/chatStore";
@@ -17,6 +18,11 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
   const { data: sessionsData } = useSessions(tenantId);
   const deleteSessionMutation = useDeleteSession();
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleDelete = async () => {
     if (!chat) return;
@@ -38,7 +44,9 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && chat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
@@ -113,6 +121,7 @@ export function DeleteChatModal({ isOpen, chat, onClose }: DeleteChatModalProps)
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
