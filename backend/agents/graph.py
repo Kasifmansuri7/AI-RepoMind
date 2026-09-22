@@ -21,7 +21,7 @@ def route_review(state: AgentState):
     print("--- REJECTED: BUGGY CODE. LOOPING TO CODER ---")
     return "coder"
 
-def build_graph():
+def build_graph(interrupt: bool = False):
     builder = StateGraph(AgentState)
     
     # Add nodes
@@ -40,7 +40,10 @@ def build_graph():
     builder.add_conditional_edges("reviewer", route_review)
     
     memory = MemorySaver()
-    return builder.compile(checkpointer=memory, interrupt_after=["planner"])
+    if interrupt:
+        return builder.compile(checkpointer=memory, interrupt_after=["planner"])
+    return builder.compile(checkpointer=memory)
 
 # Compile the graph
-agent_graph = build_graph()
+agent_graph = build_graph(interrupt=False)
+mcp_agent_graph = build_graph(interrupt=True)

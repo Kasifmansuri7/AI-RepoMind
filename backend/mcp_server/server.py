@@ -15,7 +15,7 @@ from mcp.server.mcpserver import MCPServer
 from backend.db.client import get_qdrant_client
 from backend.ingestion.embedder import Embedder
 from backend.rag.search import CodeSearcher
-from backend.agents.graph import agent_graph
+from backend.agents.graph import mcp_agent_graph as agent_graph
 from backend.db.postgres import SessionLocal
 from backend.ingestion.pipeline import ingest_repository_generator
 

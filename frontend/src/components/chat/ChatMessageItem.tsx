@@ -57,8 +57,8 @@ export function ChatMessageItem({
           <Sparkles className="w-4 h-4" />
         </div>
       )}
-      <div className={`flex flex-col gap-1 max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
-        <div className={`${msg.role === "user" ? "bg-indigo-600 text-white shadow-md shadow-indigo-900/20" : "bg-white/5 border border-white/10"} rounded-2xl p-3 px-4 overflow-hidden inline-block`}>
+      <div className={`flex flex-col gap-1 min-w-0 ${msg.role === "user" ? "max-w-[85%] items-end" : "flex-1 items-start w-full mr-11"}`}>
+        <div className={`${msg.role === "user" ? "bg-indigo-600 text-white shadow-md shadow-indigo-900/20 inline-block" : "bg-white/5 border border-white/10 w-full"} rounded-2xl p-3 px-4 overflow-x-auto max-w-full custom-scrollbar`}>
           <div className={`prose prose-invert max-w-none text-sm font-sans ${msg.role === "user" ? "prose-p:leading-relaxed" : ""}`}>
             <ReactMarkdown
               components={{
@@ -87,10 +87,10 @@ export function ChatMessageItem({
                     const path = fileChangeMatch[1];
                     return (
                       <div className="flex flex-col gap-2 my-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 bg-indigo-500/10 border-b border-indigo-500/20">
-                          <div className="flex items-center gap-2 text-indigo-300 font-medium">
-                            <FileCode2 className="w-5 h-5 text-indigo-400" />
-                            <span>File Proposed: {path}</span>
+                        <div className="flex items-center justify-between px-4 py-3 bg-indigo-500/10 border-b border-indigo-500/20 gap-4">
+                          <div className="flex items-center gap-2 text-indigo-300 font-medium min-w-0">
+                            <FileCode2 className="w-5 h-5 text-indigo-400 shrink-0" />
+                            <span className="truncate" title={path}>File Proposed: {path}</span>
                           </div>
                           <button 
                             onClick={async () => {

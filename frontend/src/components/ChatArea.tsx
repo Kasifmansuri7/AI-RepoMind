@@ -80,6 +80,16 @@ export function ChatArea() {
     }
   }, [messages, status, isFetchingMore, isLoading]);
 
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    if (!isAtBottom) {
+      shouldAutoScrollRef.current = false;
+    } else if (isLoading) {
+      shouldAutoScrollRef.current = true;
+    }
+  };
+
   useEffect(() => {
     setMode("auto");
     shouldAutoScrollRef.current = false;
@@ -285,7 +295,10 @@ export function ChatArea() {
 
   return (
     <div className="flex-1 flex flex-col relative">
-      <div className="absolute inset-0 overflow-y-auto p-6 scroll-smooth pb-40">
+      <div 
+        className="absolute inset-0 overflow-y-auto p-6 scroll-smooth pb-40" 
+        onScroll={handleScroll}
+      >
         <div className="max-w-4xl mx-auto flex flex-col gap-2">
           <ChatHeader 
             hasMessages={messages.length > 0} 

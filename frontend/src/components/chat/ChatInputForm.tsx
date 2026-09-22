@@ -60,8 +60,8 @@ export function ChatInputForm({
   const [mentionIndex, setMentionIndex] = useState(0);
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-12 bg-gradient-to-t from-[var(--background)] via-[var(--background)] via-60% to-transparent pointer-events-none z-10">
-      <div className="max-w-3xl mx-auto flex flex-col gap-2 pointer-events-auto">
+    <div className="absolute bottom-0 left-0 right-0 px-6 pb-6 pt-12 bg-gradient-to-t from-[var(--background)] via-[var(--background)] via-60% to-transparent pointer-events-none z-10">
+      <div className="max-w-4xl mx-auto w-full flex flex-col gap-2 pointer-events-auto px-4">
         
         <div className="flex justify-start items-center gap-2 px-2">
           <div className="bg-white/5 backdrop-blur-md p-1 rounded-lg border border-white/10 flex items-center gap-1 shadow-sm">

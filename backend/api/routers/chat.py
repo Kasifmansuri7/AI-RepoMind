@@ -187,7 +187,7 @@ async def stream_ask_mode(body: ChatRequest, tenant_id: str, history_msgs: list,
             
     result_ref["final_answer"] = final_answer
 
-async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str, formatted_history: str, summary_text: str, result_ref: dict):
+async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str, formatted_history: str, summary_text: str, result_ref: dict, session_id: str):
     if summary_text:
         formatted_history = f"Previous Conversation Summary:\n{summary_text}\n\nRecent Messages:\n{formatted_history}"
         
@@ -202,7 +202,8 @@ async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str,
     }
     
     final_answer = ""
-    async for event in agent_graph.astream_events(initial_state, version="v1"):
+    config = {"configurable": {"thread_id": session_id}}
+    async for event in agent_graph.astream_events(initial_state, config=config, version="v2"):
         kind = event["event"]
         name = event.get("name", "")
         
@@ -289,7 +290,7 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
                 result_ref["final_answer"] = msg
             else:
                 formatted_history = "\n".join([f"{m.role}: {m.content}" for m in recent_msgs[:-1]])
-                async for event in stream_plan_mode(body, tenant_id, github_token, formatted_history, summary_text, result_ref):
+                async for event in stream_plan_mode(body, tenant_id, github_token, formatted_history, summary_text, result_ref, session_id):
                     yield event
                     
             final_answer = result_ref["final_answer"]
