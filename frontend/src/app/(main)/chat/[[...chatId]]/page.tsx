@@ -1,37 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect } from "react";
+import { useParams } from "next/navigation";
 import { ChatArea } from "@/components/ChatArea";
 import { useChatStore } from "@/store/chatStore";
 
 export default function ChatPage() {
   const params = useParams();
+  
+  // params.chatId will be an array because of [...chatId]
+  // if we go to /chat, it will be undefined or empty array
+  // if we go to /chat/123, it will be ["123"]
+  
   const chatIdArray = params?.chatId as string[] | undefined;
-  const chatId = chatIdArray?.[0];
+  const chatId = chatIdArray?.[0] || null;
   
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
-  const currentSessionId = useChatStore((state) => state.currentSessionId);
-  const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isClient) return;
-    
     if (chatId) {
       if (chatId !== useChatStore.getState().currentSessionId) {
         setCurrentSessionId(chatId);
       }
     } else {
-      if (currentSessionId) {
-        router.replace(`/chat/${currentSessionId}`);
+      if (useChatStore.getState().currentSessionId !== null) {
+        setCurrentSessionId(null);
       }
     }
-  }, [chatId, currentSessionId, setCurrentSessionId, router, isClient]);
+  }, [chatId, setCurrentSessionId]);
 
   return <ChatArea />;
 }

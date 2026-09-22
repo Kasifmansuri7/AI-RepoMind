@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 
 # We use the reliable gpt-4o-mini for fast, cheap agent interactions
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, streaming=True)
 
 # 1. PLANNER
 class PlanResult(BaseModel):

@@ -63,20 +63,24 @@ def ensure_tenant(db, tenant_id: str):
         db.commit()
     return tenant
 
-def get_or_create_session(db, session_id: Optional[str], tenant_id: str, repo_name: str, initial_message: str) -> str:
+def get_or_create_session(db, session_id: Optional[str], tenant_id: str, repo_name: str, initial_message: str) -> tuple[str, bool, str]:
+    is_new = False
+    title = "New Chat"
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         if session:
-            return session_id
+            return session_id, is_new, session.title
     else:
         session_id = str(uuid.uuid4())
+        is_new = True
         
     repo_id = f"{tenant_id}_{repo_name}"
-    title = generate_chat_title(initial_message)
+    # Use a placeholder initially to avoid blocking the stream
+    title = initial_message[:30] + "..." if len(initial_message) > 30 else initial_message
     session = ChatSession(id=session_id, tenant_id=tenant_id, repo_id=repo_id, title=title)
     db.add(session)
     db.commit()
-    return session_id
+    return session_id, is_new, title
 
 def save_message(db, session_id: str, role: str, content: str) -> Message:
     msg = Message(id=str(uuid.uuid4()), session_id=session_id, role=role, content=content)
@@ -202,7 +206,8 @@ async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str,
     }
     
     final_answer = ""
-    config = {"configurable": {"thread_id": session_id}}
+    # Use a unique thread ID per execution so LangGraph doesn't short-circuit if the session previously reached END
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
     async for event in agent_graph.astream_events(initial_state, config=config, version="v2"):
         kind = event["event"]
         name = event.get("name", "")
@@ -213,12 +218,14 @@ async def stream_plan_mode(body: ChatRequest, tenant_id: str, github_token: str,
                 final_answer += chunk_content
                 yield {"event": "token", "data": json.dumps({"token": chunk_content})}
                 
-        elif kind == "on_chain_start" and event.get("tags") and "graph" not in name:
+        elif kind == "on_chain_start":
             if name == "planner":
                 yield {"event": "status", "data": "Planning solution and searching codebase..."}
             elif name == "search":
                 yield {"event": "status", "data": "Analyzing retrieved code snippets..."}
             elif name == "coder":
+                final_answer = ""
+                result_ref["final_answer"] = ""
                 yield {"event": "status", "data": "Drafting code..."}
             elif name == "reviewer":
                 yield {"event": "status", "data": "Reviewing drafted code..."}
@@ -251,7 +258,7 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
     github_token = request.headers.get("X-GitHub-Token", "")
     
     ensure_tenant(db, tenant_id)
-    session_id = get_or_create_session(db, body.session_id, tenant_id, body.repo_name, body.message)
+    session_id, is_new_session, initial_title = get_or_create_session(db, body.session_id, tenant_id, body.repo_name, body.message)
     save_message(db, session_id, "user", body.message)
     
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
@@ -265,8 +272,8 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             
     async def event_generator():
         try:
-            if session:
-                yield {"event": "session_created", "data": json.dumps({"session_id": session.id, "title": session.title})}
+            if is_new_session:
+                yield {"event": "session_created", "data": json.dumps({"session_id": session_id, "title": initial_title})}
                 
             history_msgs = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
             
@@ -297,6 +304,14 @@ async def chat(request: Request, body: ChatRequest, background_tasks: Background
             yield {"event": "message", "data": json.dumps({"content": final_answer, "session_id": session_id})}
             
             save_message(db, session_id, "assistant", final_answer)
+            
+            if is_new_session:
+                new_title = generate_chat_title(body.message)
+                session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+                if session:
+                    session.title = new_title
+                    db.commit()
+                    yield {"event": "title_updated", "data": json.dumps({"title": new_title})}
             
             # Trigger background summarization if history is getting long
             if len(history_msgs) > 10:

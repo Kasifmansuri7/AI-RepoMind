@@ -35,7 +35,7 @@ apiClient.interceptors.response.use(
       await supabase.auth.signOut();
       // Optional: force a reload to reset the state completely
       if (typeof window !== "undefined") {
-        window.location.href = "/";
+        window.location.assign("/");
       }
     }
     return Promise.reject(error);

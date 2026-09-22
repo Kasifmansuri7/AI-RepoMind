@@ -115,7 +115,7 @@ export function ArchitectureFlow({ repoId }: { repoId?: string }) {
   const regenerateArchitecture = useRegenerateArchitecture();
   
   // If repoId is not provided as prop, fallback to activeRepo in chat store
-  const activeRepo = repos.find((r: any) => r.name === repoName);
+  const activeRepo = repos.find((r) => r.name === repoName);
   const finalRepoId = repoId || activeRepo?.id;
 
   const { data: architectureData, isLoading, isError } = useArchitecture(finalRepoId);

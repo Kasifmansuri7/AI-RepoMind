@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Copy, Check, Terminal, Sparkles, FileCode2, GitBranch } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,8 +28,14 @@ export function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
+interface Message {
+  id?: string;
+  role: string;
+  content: string;
+}
+
 interface ChatMessageItemProps {
-  msg: any;
+  msg: Message;
   idx: number;
   totalMessages: number;
   isLoading: boolean;
@@ -62,35 +68,52 @@ export function ChatMessageItem({
           <div className={`prose prose-invert max-w-none text-sm font-sans ${msg.role === "user" ? "prose-p:leading-relaxed" : ""}`}>
             <ReactMarkdown
               components={{
-                a({ node, href, children, ...props }) {
+                a({ href, children, ...props }) {
                   if (href?.startsWith('file://')) {
                     const path = href.replace('file://', '');
+                    const buttonProps = props as Record<string, unknown>;
+                    if ('node' in buttonProps) delete buttonProps.node;
                     return (
                       <button 
                         type="button"
                         onClick={() => useEditorStore.getState().setActiveFile(path)}
                         className="text-indigo-400 hover:text-indigo-300 underline font-mono text-sm"
-                        {...(props as any)}
+                        {...(buttonProps as React.ButtonHTMLAttributes<HTMLButtonElement>)}
                       >
                         {children}
                       </button>
                     );
                   }
-                  return <a href={href} {...props}>{children}</a>;
+                  const anchorProps = props as Record<string, unknown>;
+                  if ('node' in anchorProps) delete anchorProps.node;
+                  return <a href={href} {...(anchorProps as React.AnchorHTMLAttributes<HTMLAnchorElement>)}>{children}</a>;
                 },
-                code: ({node, className, children, ...props}: any) => {
+                pre: ({ children }: { children?: React.ReactNode }) => {
+                  if (children && typeof children === 'object' && 'props' in children) {
+                    // ReactMarkdown passes the <code> element as the child of <pre>
+                    // We clone it and inject an isBlock flag so the code component knows it's block-level
+                    return React.cloneElement(children as React.ReactElement, { isBlock: true } as Record<string, unknown>);
+                  }
+                  return <>{children}</>;
+                },
+                code: ({ className, children, isBlock, ...props }: React.HTMLAttributes<HTMLElement> & { isBlock?: boolean, node?: unknown }) => {
                   const match = /language-(\w+)/.exec(className || '');
                   const fileMentionMatch = /language-file-mention:(.+)/.exec(className || '');
                   const fileChangeMatch = /language-file-change:(.+)/.exec(className || '');
                   
                   if (fileChangeMatch) {
                     const path = fileChangeMatch[1];
+                    const fileName = path.split(/[\\/]/).pop() || path;
+                    
                     return (
                       <div className="flex flex-col gap-2 my-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-3 bg-indigo-500/10 border-b border-indigo-500/20 gap-4">
-                          <div className="flex items-center gap-2 text-indigo-300 font-medium min-w-0">
+                          <div className="flex items-center gap-2 text-indigo-300 font-medium min-w-0 flex-1">
                             <FileCode2 className="w-5 h-5 text-indigo-400 shrink-0" />
-                            <span className="truncate" title={path}>File Proposed: {path}</span>
+                            <div className="flex items-center min-w-0 flex-1 text-sm" title={path}>
+                              <span className="shrink-0">File Proposed:&nbsp;</span>
+                              <span className="shrink-0 font-bold text-indigo-200">{fileName}</span>
+                            </div>
                           </div>
                           <button 
                             onClick={async () => {
@@ -101,7 +124,7 @@ export function ChatMessageItem({
                                 try {
                                   const res = await apiClient.get(`/repos/${repoId}/files/content?path=${encodeURIComponent(path)}`);
                                   original = res.data.content;
-                                } catch (e) {
+                                } catch {
                                   console.log("File might be new, no original content found.");
                                 }
                                 useEditorStore.getState().updateModifiedFile(path, original, newContent);
@@ -139,7 +162,9 @@ export function ChatMessageItem({
                     );
                   }
                   
-                  if (!match) {
+                  const isBlockCode = isBlock || match || String(children).includes('\n');
+                  
+                  if (!isBlockCode) {
                     const textContent = String(children).trim();
                     const matchedFile = allFiles.find(f => f.endsWith('/' + textContent) || f === textContent);
                     
@@ -167,7 +192,8 @@ export function ChatMessageItem({
                     );
                   }
                   
-                  return <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />;
+                  const language = match ? match[1] : 'text';
+                  return <CodeBlock language={language} value={String(children).replace(/\n$/, '')} />;
                 }
               }}
             >

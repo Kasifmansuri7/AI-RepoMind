@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { useChatStore } from '@/store/chatStore';
 import { useSessions } from '@/hooks/useSessions';

@@ -13,8 +13,7 @@ export function CodeEditor({ repoId }: { repoId: string }) {
     originalFileContent,
     setFileContent,
     setOriginalFileContent,
-    updateModifiedFile,
-    modifiedFiles
+    updateModifiedFile
   } = useEditorStore();
   
   const { data: fileData, isLoading: isFileLoading } = useFileContent(repoId, activeFile);
@@ -32,14 +31,16 @@ export function CodeEditor({ repoId }: { repoId: string }) {
   const isDirty = fileContent !== originalFileContent;
 
   const [viewMode, setViewMode] = useState<'edit' | 'diff'>('edit');
-
+  const [prevActiveFile, setPrevActiveFile] = useState(activeFile);
+  
   const currentRepo = repos.find(r => r.id === repoId || r.name === repoId);
   const isGithubRepo = currentRepo?.url?.startsWith('https://github.com/');
 
   // Reset view mode when changing files
-  useEffect(() => {
+  if (activeFile !== prevActiveFile) {
+    setPrevActiveFile(activeFile);
     setViewMode('edit');
-  }, [activeFile]);
+  }
 
   const handleSave = async () => {
     if (!activeFile || !isDirty) return;
@@ -52,7 +53,7 @@ export function CodeEditor({ repoId }: { repoId: string }) {
     try {
       await saveFileMutation.mutateAsync({ repoId, path: activeFile, content: fileContent });
       setOriginalFileContent(fileContent);
-    } catch (e) {
+    } catch {
       // Error is handled
     }
   };

@@ -22,7 +22,7 @@ interface EditorState {
   clearModifiedFiles: () => void;
 }
 
-export const useEditorStore = create<EditorState>((set, get) => ({
+export const useEditorStore = create<EditorState>((set) => ({
   activeFile: null,
   fileContent: "",
   originalFileContent: "",

@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, GitBranch, Loader2, Server, Ban, FolderGit2, Link, Search } from "lucide-react";
 import apiClient from "@/utils/apiClient";
 import { useChatStore } from "@/store/chatStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/react-query/queryKeys";
+
+interface GithubRepo {
+  id: number;
+  full_name: string;
+  clone_url: string;
+  default_branch: string;
+  private: boolean;
+}
 
 export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<"github" | "manual">("github");
@@ -19,9 +27,9 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
   const [selectedBranch, setSelectedBranch] = useState("");
   const [isFetchingBranches, setIsFetchingBranches] = useState(false);
   
-  const [githubRepos, setGithubRepos] = useState<any[]>([]);
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
   const [isFetchingGithubRepos, setIsFetchingGithubRepos] = useState(false);
-  const [selectedGithubRepo, setSelectedGithubRepo] = useState<any>(null);
+  const [selectedGithubRepo, setSelectedGithubRepo] = useState<GithubRepo | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
   const { setRepoName, session } = useChatStore();
@@ -31,13 +39,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
 
   const providerToken = session?.provider_token as string | undefined;
 
-  useEffect(() => {
-    if (isOpen && activeTab === "github" && providerToken && githubRepos.length === 0) {
-      fetchGithubRepos();
-    }
-  }, [isOpen, activeTab, providerToken]);
-
-  const fetchGithubRepos = async () => {
+  const fetchGithubRepos = useCallback(async () => {
     if (!providerToken) return;
     setIsFetchingGithubRepos(true);
     try {
@@ -54,7 +56,13 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
       console.error(e);
     }
     setIsFetchingGithubRepos(false);
-  };
+  }, [providerToken]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === "github" && providerToken && githubRepos.length === 0) {
+      fetchGithubRepos();
+    }
+  }, [isOpen, activeTab, providerToken, githubRepos.length, fetchGithubRepos]);
 
   const handleCancel = async () => {
     setIsCancelling(true);
@@ -195,7 +203,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
         }
       }
     } catch (err: unknown) {
-      const errorObj = err as any;
+      const errorObj = err as { name?: string; code?: string };
       if (errorObj?.name === "CanceledError" || errorObj?.code === "ERR_CANCELED") {
         return;
       }
@@ -274,7 +282,7 @@ export function RepoIngestionModal({ isOpen, onClose }: { isOpen: boolean, onClo
                       <h3 className="text-sm font-medium text-white mb-2">GitHub Not Connected</h3>
                       <p className="text-xs text-gray-400">
                         You need to sign in with GitHub to view your repositories directly.
-                        Use the "Manual URL" tab instead.
+                        Use the &quot;Manual URL&quot; tab instead.
                       </p>
                     </div>
                   ) : isFetchingGithubRepos ? (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, GitCommit, Sparkles, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
@@ -18,19 +18,21 @@ export function CommitModal({ isOpen, onClose, onConfirm, defaultMessage = "", r
   const { modifiedFiles } = useEditorStore();
   const generateCommitMessageMutation = useGenerateCommitMessage();
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setCommitMessage(defaultMessage);
     }
-  }, [isOpen, defaultMessage]);
+  }
 
   const handleGenerate = async () => {
     if (!repoId) return;
     try {
       const msg = await generateCommitMessageMutation.mutateAsync({ repoId, files: modifiedFiles });
       if (msg) setCommitMessage(msg);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      console.error("Failed to generate commit message.");
     }
   };
 

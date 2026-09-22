@@ -112,6 +112,7 @@ export function ChatInputForm({
           <div className="flex flex-wrap gap-2 mb-2 p-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
             {attachedImages.map((url, idx) => (
               <div key={`img-${idx}`} className="relative group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="Attached preview" className="h-16 w-16 object-cover rounded-lg border border-white/20" />
                 <button
                   onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
@@ -195,7 +196,7 @@ export function ChatInputForm({
                     setIsUploading(true);
                     try {
                       const filename = `${Date.now()}_${file.name}`;
-                      const { data, error } = await supabase.storage
+                      const { error } = await supabase.storage
                         .from('chat-attachments')
                         .upload(filename, file);
                       

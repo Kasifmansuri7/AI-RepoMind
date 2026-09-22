@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, InfiniteData } from "@tanstack/react-query";
 import apiClient from "@/utils/apiClient";
 import { queryKeys } from "@/lib/react-query/queryKeys";
 import { Message } from "@/store/chatStore";
@@ -23,7 +23,8 @@ export function useMessages(sessionId: string | null) {
       return lastPage?.has_more ? allPages.length + 1 : undefined;
     },
     initialPageParam: 1,
-    enabled: true, // Always enabled so we can use the cache even for pending
+    enabled: true,
+    staleTime: 1000 * 60, // Keep fresh to prevent background refetches from overwriting streaming messages
   });
 }
 
@@ -34,7 +35,7 @@ export function useMessagesCache(sessionId: string | null) {
   const activeSessionId = sessionId || 'pending';
 
   const addMessage = (message: Message) => {
-    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: any) => {
+    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: InfiniteData<MessagesResponse> | undefined) => {
       if (!oldData || !oldData.pages) {
         return { pages: [{ items: [message], has_more: false, total: 1 }], pageParams: [1] };
       }
@@ -51,7 +52,7 @@ export function useMessagesCache(sessionId: string | null) {
   };
 
   const updateLastMessage = (content: string) => {
-    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: any) => {
+    queryClient.setQueryData(queryKeys.messages(activeSessionId), (oldData: InfiniteData<MessagesResponse> | undefined) => {
       if (!oldData || !oldData.pages) return oldData;
       
       const newPages = [...oldData.pages];

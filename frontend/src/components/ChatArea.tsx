@@ -18,7 +18,6 @@ import { useRouter, usePathname } from "next/navigation";
 
 // Import modular components
 import { ChatWelcomeScreen } from "./chat/ChatWelcomeScreen";
-import { ChatHeader } from "./chat/ChatHeader";
 import { ChatMessageItem } from "./chat/ChatMessageItem";
 import { ChatInputForm } from "./chat/ChatInputForm";
 
@@ -72,22 +71,29 @@ export function ChatArea() {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const topOfMessagesRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
     if (!isFetchingMore && shouldAutoScrollRef.current) {
+      isProgrammaticScrollRef.current = true;
       endOfMessagesRef.current?.scrollIntoView({ behavior: isLoading ? "auto" : "smooth" });
+      
+      const timer = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [messages, status, isFetchingMore, isLoading]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isProgrammaticScrollRef.current) return;
+    
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    if (!isAtBottom) {
-      shouldAutoScrollRef.current = false;
-    } else if (isLoading) {
-      shouldAutoScrollRef.current = true;
-    }
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
+    
+    shouldAutoScrollRef.current = isAtBottom;
   };
 
   useEffect(() => {
@@ -167,6 +173,20 @@ export function ChatArea() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
+      let activeId = currentSessionId || 'pending';
+      const localUpdateLastMessage = (content: string) => {
+        queryClient.setQueryData(queryKeys.messages(activeId), (oldData: any) => {
+          if (!oldData || !oldData.pages) return oldData;
+          const newPages = [...oldData.pages];
+          if (newPages.length > 0 && newPages[0].items?.length > 0) {
+            const updatedItems = [...newPages[0].items];
+            updatedItems[0] = { ...updatedItems[0], content };
+            newPages[0] = { ...newPages[0], items: updatedItems };
+          }
+          return { ...oldData, pages: newPages };
+        });
+      };
+
       const res = await axios.post(`${API_URL}/api/chat`, 
         { message: msgText, repo_name: activeRepoName, mode, session_id: currentSessionId },
         {
@@ -185,6 +205,7 @@ export function ChatArea() {
       addMessage({ role: "assistant", content: "" });
 
       let buffer = "";
+      let currentEvent = "message";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -193,8 +214,11 @@ export function ChatArea() {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         
-        let currentEvent = "message";
         for (const line of lines) {
+          if (line.trim() === "") {
+            currentEvent = "message";
+            continue;
+          }
           if (line.startsWith("event: ")) {
             currentEvent = line.replace("event: ", "").trim();
           } else if (line.startsWith("data: ")) {
@@ -206,7 +230,7 @@ export function ChatArea() {
               setStatus("");
               continue;
             }
-                        if (line.includes('"session_created"')) {
+            if (currentEvent === "session_created") {
               try {
                 const parsed = JSON.parse(dataStr);
                 if (parsed.session_id && !currentSessionId) {
@@ -216,14 +240,15 @@ export function ChatArea() {
                     queryClient.removeQueries({ queryKey: queryKeys.messages('pending') });
                   }
                   setCurrentSessionId(parsed.session_id);
+                  activeId = parsed.session_id;
                   if (pathname === '/chat' || pathname.startsWith('/chat/')) {
-                    router.push(`/chat/${parsed.session_id}`);
+                    window.history.replaceState(null, '', `/chat/${parsed.session_id}`);
                   }
                   queryClient.setQueryData(queryKeys.sessionsBase(), (old: any) => {
                     if (!old) return old;
                     const newPages = [...old.pages];
                     if (newPages.length > 0) {
-                      newPages[0] = {
+                       newPages[0] = {
                         ...newPages[0],
                         items: [{ id: parsed.session_id, title: parsed.title || "New Chat", repo_id: "", created_at: new Date().toISOString() }, ...newPages[0].items]
                       };
@@ -233,14 +258,34 @@ export function ChatArea() {
                   queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
                 }
               } catch {}
-            } else if (line.includes('"token"')) {
+            } else if (currentEvent === "title_updated") {
+              try {
+                const parsed = JSON.parse(dataStr);
+                queryClient.setQueryData(queryKeys.sessionsBase(), (old: any) => {
+                  if (!old) return old;
+                  const newPages = [...old.pages];
+                  if (newPages.length > 0) {
+                    newPages[0] = {
+                      ...newPages[0],
+                      items: newPages[0].items.map((item: any) => 
+                        item.id === currentSessionId || item.id === parsed.session_id 
+                          ? { ...item, title: parsed.title } 
+                          : item
+                      )
+                    };
+                  }
+                  return { ...old, pages: newPages };
+                });
+                queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
+              } catch {}
+            } else if (currentEvent === "token") {
               try {
                 const parsed = JSON.parse(dataStr);
                 finalContent += parsed.token;
-                updateLastMessage(finalContent);
+                localUpdateLastMessage(finalContent);
                 setStatus("");
               } catch {}
-            } else if (line.includes('"mode"')) {
+            } else if (currentEvent === "mode_switch") {
               try {
                 const parsed = JSON.parse(dataStr);
                 setMode(parsed.mode);
@@ -248,11 +293,11 @@ export function ChatArea() {
                   router.push(`/architecture/${encodeURIComponent(activeRepoName!)}`);
                 }
               } catch {}
-            } else if (line.includes('"content"')) {
+            } else if (currentEvent === "message") {
               try {
                 const parsed = JSON.parse(dataStr);
                 finalContent = parsed.content;
-                updateLastMessage(finalContent);
+                localUpdateLastMessage(finalContent);
                 if (parsed.session_id && !currentSessionId) {
                   const pendingData = queryClient.getQueryData(queryKeys.messages('pending'));
                   if (pendingData) {
@@ -261,7 +306,7 @@ export function ChatArea() {
                   }
                   setCurrentSessionId(parsed.session_id);
                   if (pathname === '/chat' || pathname.startsWith('/chat/')) {
-                    router.push(`/chat/${parsed.session_id}`);
+                    window.history.replaceState(null, '', `/chat/${parsed.session_id}`);
                   }
                   queryClient.invalidateQueries({ queryKey: queryKeys.sessionsBase() });
                 }
@@ -269,7 +314,7 @@ export function ChatArea() {
               } catch {
                  console.error("Error parsing JSON: ", dataStr)
               }
-            } else {
+            } else if (currentEvent === "status") {
               setStatus(dataStr);
             }
           }
@@ -300,12 +345,6 @@ export function ChatArea() {
         onScroll={handleScroll}
       >
         <div className="max-w-4xl mx-auto flex flex-col gap-2">
-          <ChatHeader 
-            hasMessages={messages.length > 0} 
-            currentSessionTitle={currentSession?.title} 
-            activeRepoName={activeRepoName} 
-          />
-
           {isMessagesLoading && messages.length === 0 ? (
             <div className="flex flex-col gap-6 py-4">
               <div className="flex gap-4 p-4 w-full justify-end">
@@ -342,7 +381,7 @@ export function ChatArea() {
           )}
 
           {messages.map((msg, idx) => {
-            if (isLoading && idx === messages.length - 1 && msg.role === "assistant" && !msg.content) {
+            if (msg.role === "assistant" && !msg.content?.trim()) {
               return null;
             }
             return (
