@@ -142,9 +142,13 @@ class RepoManager:
     def get_files(self, repo_path: Path, extensions: list[str] = None) -> list[Path]:
         """Recursively get all relevant files from a repo path."""
         files = []
-        for root, _, filenames in os.walk(repo_path):
-            if ".git" in root or "node_modules" in root or "venv" in root:
-                continue
+        # Define directories to completely ignore
+        ignore_dirs = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", ".next", "coverage"}
+        
+        for root, dirs, filenames in os.walk(repo_path):
+            # Modify dirs in-place so os.walk doesn't descend into ignored directories
+            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            
             for filename in filenames:
                 if extensions is None or any(filename.endswith(ext) for ext in extensions):
                     files.append(Path(root) / filename)

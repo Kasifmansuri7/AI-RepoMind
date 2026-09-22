@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from .state import AgentState
 from .nodes import planner_node, search_node, coder_node, reviewer_node
 
@@ -38,7 +39,8 @@ def build_graph():
     # Conditional edge from reviewer
     builder.add_conditional_edges("reviewer", route_review)
     
-    return builder.compile()
+    memory = MemorySaver()
+    return builder.compile(checkpointer=memory, interrupt_after=["planner"])
 
 # Compile the graph
 agent_graph = build_graph()
